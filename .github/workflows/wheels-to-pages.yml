@@ -1,0 +1,260 @@
+name: Build wheels (abi3) and publish a PEP 503 index to GitHub Pages
+
+on:
+    push:
+        branches: [main, master]
+        tags: ["v*"]
+    pull_request:
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    # ---------- LINUX: build inside manylinux; generate stubs once ----------
+    build-linux:
+        runs-on: ubuntu-latest
+        outputs:
+            stubs_present: ${{ steps.has_stubs.outputs.present }}
+        env:
+            RUSTC_WRAPPER: sccache
+            SCCACHE_GHA_ENABLED: "true"
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: actions/setup-python@v5
+              with: { python-version: "3.11" }
+
+            # Rust target cache (host). Helps if any host cargo runs occur.
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  prefix-key: maze-core
+                  workspaces: |
+                      . -> target
+
+            # Host sccache (for any host-side cargo)
+            - name: Setup sccache
+              uses: mozilla-actions/sccache-action@v0.0.9
+            - name: Enable sccache env
+              run: |
+                  echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+                  echo "RUSTC_WRAPPER=sccache"   >> $GITHUB_ENV
+
+            # Cache sccache directory (shared with container via mount)
+            - uses: actions/cache@v4
+              with:
+                  path: ~/.cache/sccache
+                  key: sccache-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+                  restore-keys: |
+                      sccache-${{ runner.os }}-
+
+            # Pip cache
+            - uses: actions/cache@v4
+              with:
+                  path: ~/.cache/pip
+                  key: pip-${{ runner.os }}-${{ hashFiles('**/requirements*.txt') }}
+                  restore-keys: pip-${{ runner.os }}-
+
+            # Venv (to install built wheel & run stub generator)
+            - name: Create venv
+              run: |
+                  python -m venv .venv
+                  . .venv/bin/activate
+                  python -m pip install -U pip "maturin>=1.7,<2.0"
+
+            # Build wheels ONCE (inside manylinux) with sccache mounted
+            - name: Build wheels in manylinux2014 (docker + sccache)
+              run: |
+                  docker run --rm -t \
+                    -v "$GITHUB_WORKSPACE":/io \
+                    -v "$HOME/.cache/sccache":/root/.cache/sccache \
+                    -w /io \
+                    -e RUSTC_WRAPPER=sccache \
+                    -e SCCACHE_DIR=/root/.cache/sccache \
+                    --entrypoint /bin/bash ghcr.io/pyo3/maturin:v1.9.3 -lc '
+                      set -euxo pipefail
+                      curl -L https://github.com/mozilla/sccache/releases/download/v0.10.0/sccache-v0.10.0-x86_64-unknown-linux-musl.tar.gz \
+                        | tar xz --strip-components=1 -C /usr/local/bin sccache-v0.10.0-x86_64-unknown-linux-musl/sccache
+                      sccache --start-server || true
+                      maturin build -m Cargo.toml \
+                        --features pymodule --release --sdist --manylinux 2014 -o dist
+                      sccache --show-stats || true
+                    '
+
+            - name: Claim ownership of the target directory
+              run: sudo chown -R $(id -u):$(id -g) target
+
+            # Install the wheel and generate stubs (no duplicate Rust build)
+            - name: Install wheel and generate stubs
+              run: |
+                  . .venv/bin/activate
+                  pip install dist/*.whl
+                  python -c "import maze_core as m; print('import ok:', m.__file__)"
+                  # If stub_gen is a Rust bin, avoid sccache requirement for this one step:
+                  env -u RUSTC_WRAPPER cargo run --bin stub_gen --no-default-features --release
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: dist-linux
+                  path: dist/*
+
+            - id: has_stubs
+              shell: bash
+              run: |
+                  shopt -s nullglob
+                  files=(python/maze_core/*.pyi)
+                  if ((${#files[@]})); then
+                    echo "present=true"  >> "$GITHUB_OUTPUT"
+                  else
+                    echo "present=false" >> "$GITHUB_OUTPUT"
+                  fi
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: stubs
+                  path: python/maze_core/*.pyi
+
+    # ---------- WINDOWS ----------
+    build-windows:
+        needs: build-linux
+        runs-on: windows-latest
+        env:
+            RUSTC_WRAPPER: sccache
+            SCCACHE_GHA_ENABLED: "true"
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: actions/setup-python@v5
+              with: { python-version: "3.11" }
+
+            - uses: mozilla-actions/sccache-action@v0.0.9
+
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  prefix-key: maze-core
+                  workspaces: |
+                      . -> target
+
+            # (Optional) Download stubs if you want to package them / sanity-check
+            - uses: actions/download-artifact@v4
+              if: ${{ needs.build-linux.outputs.stubs_present == 'true' }}
+              with:
+                  name: stubs
+                  path: python/maze_core
+
+            # Build wheels on Windows host
+            - name: Build wheels (Windows)
+              uses: PyO3/maturin-action@v1
+              with:
+                  command: build
+                  args: -m Cargo.toml --features pymodule --release --sdist -o dist
+
+            # Quick import test (optional)
+            - name: Import test
+              shell: pwsh
+              run: |
+                  python -m venv .venv
+                  .\.venv\Scripts\python.exe -m pip install -U pip
+                  .\.venv\Scripts\pip.exe install dist\*.whl
+                  .\.venv\Scripts\python.exe -c "import maze_core; print('import ok')"
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: dist-windows
+                  path: dist/*
+
+    # ---------- macOS ----------
+    build-macos:
+        needs: build-linux
+        runs-on: macos-14
+        env:
+            RUSTC_WRAPPER: sccache
+            SCCACHE_GHA_ENABLED: "true"
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+
+            - uses: mozilla-actions/sccache-action@v0.0.9
+
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  prefix-key: maze-core
+                  workspaces: |
+                      . -> target
+
+            # (Optional) Download stubs if you want to package them / sanity-check
+            - uses: actions/download-artifact@v4
+              if: ${{ needs.build-linux.outputs.stubs_present == 'true' }}
+              with:
+                  name: stubs
+                  path: python/ctf_core
+
+            - name: Build wheels (macOS universal2)
+              uses: PyO3/maturin-action@v1
+              with:
+                  command: build
+                  args: -m Cargo.toml --features pymodule --release --sdist --target universal2-apple-darwin -o dist
+
+            # Quick import test (optional)
+            - name: Import test
+              run: |
+                  python -m venv .venv
+                  . .venv/bin/activate
+                  pip install -U pip
+                  pip install dist/*.whl
+                  python -c "import maze_core; print('import ok')"
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: dist-macos
+                  path: dist/*
+
+    # ---------- Pages deploy (only on tags) ----------
+    pages:
+        if: startsWith(github.ref, 'refs/tags/')
+        needs: [build-linux, build-windows, build-macos]
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            pages: write
+            id-token: write
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - name: Download all wheel artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  pattern: dist-*
+                  merge-multiple: true
+                  path: dist
+                  if-no-files-found: error
+
+            - name: Build PEP 503 simple index
+              run: |
+                  set -euo pipefail
+                  python -m pip install --upgrade simple503
+                  mkdir -p site/wheels
+                  shopt -s nullglob
+                  files=(dist/*.whl dist/*.tar.gz)
+                  if ((${#files[@]})); then
+                    cp -t site/wheels -- "${files[@]}"
+                    echo "Copied ${#files[@]} artifact(s) into site/wheels"
+                  else
+                    echo "No artifacts found in dist/"; exit 1
+                  fi
+                  BASE="/${GITHUB_REPOSITORY#*/}/wheels/"
+                  echo "simple503 base-url: $BASE"
+                  simple503 --sort -B "$BASE" site/wheels
+                  echo "<h1>Private Wheels Index -- CS182 maze</h1>" > site/index.html
+                  touch site/.nojekyll
+
+            - uses: actions/configure-pages@v5
+            - uses: actions/upload-pages-artifact@v3
+              with:
+                  path: site
+            - id: deployment
+              uses: actions/deploy-pages@v4
