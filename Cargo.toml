@@ -1,0 +1,43 @@
+[package]
+name = "maze"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "maze_core"
+crate-type = ["cdylib", "rlib"]
+
+[build-dependencies]
+pyo3-build-config = "0.26"
+
+[features]
+pymodule = ["pyo3/extension-module", "pyo3/abi3-py310"]
+default = []
+
+[dependencies]
+pyo3 = { version = "0.26", features = ["serde"] }
+avian3d = { git = "https://github.com/Jondolf/avian", branch = "main", features = [
+    "bevy_diagnostic",
+    "diagnostic_ui",
+    "debug-plugin",
+] }
+bevy = { version = "0.17.1" }
+pyo3-stub-gen = "0.14.0"
+bevy-inspector-egui = "0.34"
+bevy_gizmos = "0.17.1"
+derivative = "2.2.0"
+serde = "1.0.228"
+serde_json = "1.0.145"
+pythonize = "0.26.0"
+crossbeam-channel = "0.5.15"
+anyhow = "1.0.100"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[[bin]]
+name = "stub_gen"
+doc = false
