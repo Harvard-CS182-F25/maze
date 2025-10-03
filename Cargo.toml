@@ -19,10 +19,8 @@ bevy = { version = "0.17.1", default-features = false, features = [
     # Parts of Bevy:
     "animation",                   # Enable animation for everything that supports it
     "bevy_asset",                  # Asset management
-    "bevy_audio",                  # Audio support
     "bevy_color",                  # Color management
     "bevy_core_pipeline",          # Bevy's GPU rendering architecture
-    "bevy_gilrs",                  # Gamepad/controller support
     "bevy_gizmos",                 # Gizmos (drawing debug lines and shapes)
     "bevy_image",                  # Image support
     "bevy_input_focus",            # Input focusing system for UI
