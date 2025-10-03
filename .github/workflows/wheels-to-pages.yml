@@ -190,7 +190,7 @@ jobs:
               if: ${{ needs.build-linux.outputs.stubs_present == 'true' }}
               with:
                   name: stubs
-                  path: python/ctf_core
+                  path: python/maze_core
 
             - name: Build wheels (macOS universal2)
               uses: PyO3/maturin-action@v1
