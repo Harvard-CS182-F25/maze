@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use derivative::Derivative;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::gen_stub_pyclass;
 use serde::{Deserialize, Serialize};
@@ -12,7 +13,8 @@ use crate::scene;
 
 #[gen_stub_pyclass]
 #[pyclass(name = "MazeConfig")]
-#[derive(Debug, Clone, Default, Resource, Reflect, Serialize, Deserialize)]
+#[derive(Debug, Clone, Resource, Reflect, Serialize, Deserialize, Derivative)]
+#[derivative(Default)]
 #[serde(default)]
 #[reflect(Resource)]
 pub struct MazeConfig {
@@ -25,11 +27,11 @@ pub struct MazeConfig {
     #[pyo3(get, set)]
     pub camera: camera::CameraConfig,
     #[pyo3(get, set)]
+    pub maze_generation: scene::MazeGenerationConfig,
+    #[pyo3(get, set)]
     pub debug: bool,
     #[pyo3(get, set)]
     pub headless: bool,
-    #[pyo3(get, set)]
-    pub seed: u64,
 }
 
 #[pymethods]

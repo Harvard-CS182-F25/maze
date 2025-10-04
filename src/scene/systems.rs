@@ -1,68 +1,13 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use maze_generator::prelude::*;
+use maze_generator::recursive_backtracking::RbGenerator;
 
 use crate::{
     agent::COLLISION_LAYER_AGENT,
+    core::MazeConfig,
     scene::{COLLISION_LAYER_WALL, WALL_HEIGHT, WALL_THICKNESS, WallBundle, WallGraphicsAssets},
 };
-
-pub fn spawn_walls(
-    mut commands: Commands,
-    mut meshes: Option<ResMut<Assets<Mesh>>>,
-    graphics: Option<Res<WallGraphicsAssets>>,
-) {
-    let outer = [
-        (Vec2::new(-50.0, 50.0), Vec2::new(50.0, 50.0)),
-        (Vec2::new(50.0, 50.0), Vec2::new(50.0, -50.0)),
-        (Vec2::new(50.0, -50.0), Vec2::new(-50.0, -50.0)),
-        (Vec2::new(-50.0, -50.0), Vec2::new(-50.0, 50.0)),
-    ];
-
-    let side_bars = [
-        (Vec2::new(-45.0, 45.0), Vec2::new(-45.0, 5.0)),
-        (Vec2::new(-45.0, -5.0), Vec2::new(-45.0, -45.0)),
-        (Vec2::new(45.0, 45.0), Vec2::new(45.0, 5.0)),
-        (Vec2::new(45.0, -5.0), Vec2::new(45.0, -45.0)),
-    ];
-
-    // Middle horizontal bars (purple in your plot)
-    let middle = [
-        (Vec2::new(-10.0, 5.0), Vec2::new(10.0, 5.0)),
-        (Vec2::new(-10.0, -5.0), Vec2::new(10.0, -5.0)),
-    ];
-
-    // Center diamonds (from your Desmos polygons)
-    let diamond_left_edges = [
-        (Vec2::new(-5.0, 0.0), Vec2::new(-35.0, 30.0)),
-        (Vec2::new(-35.0, -30.0), Vec2::new(-5.0, 0.0)),
-        (Vec2::new(-5.0, 0.0), Vec2::new(25.0, -30.0)),
-        (Vec2::new(25.0, 20.0), Vec2::new(5.0, 0.0)),
-    ];
-
-    let diamond_right_edges = [
-        (Vec2::new(5.0, 0.0), Vec2::new(35.0, 30.0)),
-        (Vec2::new(35.0, -30.0), Vec2::new(5.0, 0.0)),
-        (Vec2::new(5.0, 0.0), Vec2::new(-25.0, 30.0)),
-        (Vec2::new(-25.0, -20.0), Vec2::new(-5.0, 0.0)),
-    ];
-
-    let spawn_list = outer
-        .into_iter()
-        .chain(side_bars)
-        .chain(middle)
-        .chain(diamond_left_edges)
-        .chain(diamond_right_edges);
-
-    for (p0, p1) in spawn_list {
-        let mut entity = commands.spawn(WallBundle::new(p0, p1, WALL_THICKNESS));
-
-        if let (Some(meshes), Some(graphics)) = (&mut meshes, &graphics) {
-            let len = p0.distance(p1);
-            let mesh = meshes.add(Cuboid::new(len, WALL_HEIGHT, WALL_THICKNESS));
-            entity.insert((Mesh3d(mesh), MeshMaterial3d(graphics.material.clone())));
-        }
-    }
-}
 
 pub fn setup_scene(
     mut commands: Commands,
@@ -84,5 +29,119 @@ pub fn setup_scene(
         let mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
         let material = materials.add(Color::srgb(0.0, 1.0, 0.0));
         entity.insert((Mesh3d(mesh), MeshMaterial3d(material)));
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_horizontal(
+    segs: &mut Vec<(Vec2, Vec2)>,
+    x0: f32,
+    z0: f32,
+    cell: f32,
+    row: i32,
+    col: i32,
+    pad: f32,
+    xmin: f32,
+    xmax: f32,
+) {
+    let z = z0 + (row as f32) * cell;
+    let mut ax = x0 + (col as f32) * cell - pad;
+    let mut bx = x0 + ((col + 1) as f32) * cell + pad;
+    // keep within outer bounds
+    ax = ax.max(xmin);
+    bx = bx.min(xmax);
+    segs.push((Vec2::new(ax, z), Vec2::new(bx, z)));
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_vertical(
+    segs: &mut Vec<(Vec2, Vec2)>,
+    x0: f32,
+    z0: f32,
+    cell: f32,
+    col: i32,
+    row: i32,
+    pad: f32,
+    zmin: f32,
+    zmax: f32,
+) {
+    let x = x0 + (col as f32) * cell;
+    let mut az = z0 + (row as f32) * cell - pad;
+    let mut bz = z0 + ((row + 1) as f32) * cell + pad;
+    az = az.max(zmin);
+    bz = bz.min(zmax);
+    segs.push((Vec2::new(x, az), Vec2::new(x, bz)));
+}
+
+pub fn segments_from_maze(maze: &Maze, cell: f32, pad: f32) -> Vec<(Vec2, Vec2)> {
+    let (w, h) = maze.size; // i32
+    let x0 = -(w as f32) * cell * 0.5;
+    let z0 = -(h as f32) * cell * 0.5;
+
+    // outer bounds for clamping
+    let xmin = x0;
+    let xmax = x0 + (w as f32) * cell;
+    let zmin = z0;
+    let zmax = z0 + (h as f32) * cell;
+
+    let mut segments = Vec::new();
+
+    // top (north) border and left (west) border
+    for c in 0..w {
+        push_horizontal(&mut segments, x0, z0, cell, 0, c, pad, xmin, xmax);
+    }
+    for r in 0..h {
+        push_vertical(&mut segments, x0, z0, cell, 0, r, pad, zmin, zmax);
+    }
+
+    // interior: add East/South walls where there is NO passage
+    for y in 0..h {
+        for x in 0..w {
+            let field = maze.get_field(&Coordinates::new(x, y)).expect("in-bounds");
+            if !field.has_passage(&Direction::East) {
+                push_vertical(&mut segments, x0, z0, cell, x + 1, y, pad, zmin, zmax);
+            }
+            if !field.has_passage(&Direction::South) {
+                push_horizontal(&mut segments, x0, z0, cell, y + 1, x, pad, xmin, xmax);
+            }
+        }
+    }
+
+    segments
+}
+
+pub fn spawn_walls(
+    mut commands: Commands,
+    mut meshes: Option<ResMut<Assets<Mesh>>>,
+    graphics: Option<Res<WallGraphicsAssets>>,
+    config: Res<MazeConfig>,
+) {
+    let mut generator = RbGenerator::new(config.maze_generation.seed.map(|s| {
+        let mut arr = [0u8; 32];
+        arr[..4].copy_from_slice(&s.to_le_bytes());
+        arr
+    }));
+
+    let maze = generator
+        .generate(
+            (config.maze_generation.width / config.maze_generation.cell_size).round() as i32,
+            (config.maze_generation.height / config.maze_generation.cell_size).round() as i32,
+        )
+        .expect("Maze generation failed");
+
+    let segments = segments_from_maze(
+        &maze,
+        config.maze_generation.cell_size,
+        WALL_THICKNESS * 0.5,
+    );
+
+    for (p0, p1) in segments {
+        let mut entity = commands.spawn(WallBundle::new(p0, p1, WALL_THICKNESS));
+
+        if let (Some(meshes), Some(graphics)) = (&mut meshes, &graphics) {
+            let len = p0.distance(p1);
+            let mesh = meshes.add(Cuboid::new(len, WALL_HEIGHT, WALL_THICKNESS));
+            entity.insert((Mesh3d(mesh), MeshMaterial3d(graphics.material.clone())));
+        }
     }
 }
