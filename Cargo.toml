@@ -15,29 +15,29 @@ pymodule = ["pyo3/extension-module", "pyo3/abi3-py310"]
 default = []
 
 [dependencies]
-bevy = { version = "0.17.1", default-features = false, features = [
+bevy = { version = "0.17.2", default-features = false, features = [
     # Parts of Bevy:
-    "animation",                   # Enable animation for everything that supports it
-    "bevy_asset",                  # Asset management
-    "bevy_color",                  # Color management
-    "bevy_core_pipeline",          # Bevy's GPU rendering architecture
-    "bevy_gizmos",                 # Gizmos (drawing debug lines and shapes)
-    "bevy_image",                  # Image support
-    "bevy_input_focus",            # Input focusing system for UI
-    "bevy_log",                    # Logging to console
-    "bevy_mesh_picking_backend",   # 3D mesh picking (selection by cursor)
-    "bevy_pbr",                    # 3D rendering and Physically Based Shading
-    "bevy_picking",                # Picking (selection of objects by cursor)
-    "bevy_render",                 # GPU support (based on `wgpu`)
-    "bevy_scene",                  # ECS Scenes
-    "bevy_sprite",                 # 2D rendering (sprites, meshes, text)
-    "bevy_sprite_picking_backend", # 2D sprite picking (selection by cursor)
-    "bevy_state",                  # App state management
-    "bevy_text",                   # Text rendering
-    "bevy_ui",                     # UI toolkit
-    "bevy_ui_picking_backend",     # UI node picking (selection by cursor)
-    "bevy_window",                 # Window management
-    "bevy_winit",                  # Cross-platform window management support
+    "animation",                 # Enable animation for everything that supports it
+    "bevy_asset",                # Asset management
+    "bevy_color",                # Color management
+    "bevy_core_pipeline",        # Bevy's GPU rendering architecture
+    "bevy_gizmos",               # Gizmos (drawing debug lines and shapes)
+    "bevy_image",                # Image support
+    "bevy_input_focus",          # Input focusing system for UI
+    "bevy_log",                  # Logging to console
+    "bevy_mesh_picking_backend", # 3D mesh picking (selection by cursor)
+    "bevy_pbr",                  # 3D rendering and Physically Based Shading
+    "bevy_picking",              # Picking (selection of objects by cursor)
+    "bevy_render",               # GPU support (based on `wgpu`)
+    "bevy_scene",                # ECS Scenes
+    "bevy_state",                # App state management
+    "bevy_text",                 # Text rendering
+    "bevy_ui",                   # UI toolkit
+    "bevy_ui_picking_backend",   # UI node picking (selection by cursor)
+    "bevy_window",               # Window management
+    "bevy_winit",                # Cross-platform window management support
+
+    "reflect_auto_register", # Enable automatic registration of Reflect types
 
     # Low-level tunables
     "std",            # Use the Rust standard library (important!)

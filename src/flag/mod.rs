@@ -29,7 +29,6 @@ pub struct CapturePointConfig {
 pub struct FlagPlugin;
 impl Plugin for FlagPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<components::FlagCaptureCounts>();
         app.init_resource::<components::FlagCaptureCounts>();
         app.add_systems(PreStartup, init_flag_and_capture_point_assets);
         app.add_systems(Startup, systems::spawn_flags);

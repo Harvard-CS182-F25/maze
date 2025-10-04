@@ -12,11 +12,12 @@ pub fn spawn_flags(
     config: Res<MazeConfig>,
 ) {
     for (i, &position) in config.flags.positions.iter().enumerate() {
+        info!("Spawning flag at position: {:?}", position);
         let flag_name = format!("Flag {}", i + 1);
 
         let mut entity = commands.spawn(FlagBundle::new(
             &flag_name,
-            Vec3::new(position.0, 0.0, position.1),
+            Vec3::new(position.0, 0.5, position.1),
         ));
 
         if let Some(flag_graphics) = &flag_graphics {
@@ -34,11 +35,12 @@ pub fn spawn_capture_points(
     config: Res<MazeConfig>,
 ) {
     for (i, &position) in config.capture_points.positions.iter().enumerate() {
+        info!("Spawning capture point at position: {:?}", position);
         let name = format!("Capture Point {}", i + 1);
 
         let mut entity = commands.spawn(CapturePointBundle::new(
             &name,
-            Vec3::new(position.0, 0.0, position.1),
+            Vec3::new(position.0, 0.5, position.1),
         ));
 
         if let Some(capture_point_graphics) = &capture_point_graphics {

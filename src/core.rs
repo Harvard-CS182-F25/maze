@@ -26,7 +26,6 @@ pub struct MazePlugin {
 
 impl Plugin for MazePlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<MazeConfig>();
         app.insert_resource(self.config.clone());
 
         app.add_plugins((

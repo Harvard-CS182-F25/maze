@@ -3,9 +3,9 @@ use crossbeam_channel::{Receiver, Sender, TrySendError};
 use pyo3::prelude::*;
 
 use crate::character_controller::MaxLinearSpeed;
-use crate::flag::{CapturePoint, Flag, FlagCaptureCounts};
+use crate::flag::{Flag, FlagCaptureCounts};
 use crate::interaction_range::{FlagDropMessage, FlagPickupMessage};
-use crate::python::game_state::{AgentState, collect_agent_state};
+use crate::python::game_state::collect_agent_state;
 use crate::{
     agent::{Action, Agent},
     character_controller::MovementMessage,
@@ -115,8 +115,8 @@ fn send_game_states(
     mut t: ResMut<PolicyTimer>,
     scores: Res<FlagCaptureCounts>,
     bridge: Option<Res<Bridge>>,
-    agent: Query<(Entity, &Agent, &MaxLinearSpeed, &Transform, Option<&Flag>)>,
-    flags: Query<&Flag>,
+    agent: Query<(Entity, &MaxLinearSpeed, &Transform, Option<&Children>), With<Agent>>,
+    flags: Query<Entity, With<Flag>>,
 ) {
     if !t.0.tick(time.delta()).just_finished() {
         return;
@@ -127,7 +127,7 @@ fn send_game_states(
     };
 
     let game_state = GameState {
-        agent: collect_agent_state(agent, &[]),
+        agent: collect_agent_state(agent, flags, &[]),
         total_flags: flags.iter().count() as u32,
         collected_flags: scores.0,
         world_width: 100.0,

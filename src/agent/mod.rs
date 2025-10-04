@@ -30,7 +30,6 @@ pub struct AgentConfig {
 pub struct AgentPlugin;
 impl Plugin for AgentPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<Agent>();
         app.add_systems(PreStartup, spawn_agent_assets);
         app.add_systems(Startup, systems::spawn_agents);
     }

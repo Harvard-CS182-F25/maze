@@ -16,6 +16,8 @@ pub fn spawn_agents(
         config.agent.speed,
     ));
 
+    info!("Spawning agent at position: {:?}", config.agent.position);
+
     if let Some(graphics) = graphics {
         entity.insert((
             Mesh3d(graphics.mesh.clone()),

@@ -57,7 +57,7 @@ impl Default for AgentBundle {
 
         Self {
             name: Name::new("Agent"),
-            agent: Agent::default(),
+            agent: Agent,
             position: Transform::default(),
             max_speed: MaxLinearSpeed::default(),
             friction: Friction::ZERO.with_combine_rule(CoefficientCombine::Min),

@@ -42,18 +42,28 @@ pub struct AgentState {
 pub struct HitInfo {}
 
 pub fn collect_agent_state(
-    agent: Query<(Entity, &Agent, &MaxLinearSpeed, &Transform, Option<&Flag>)>,
+    agent: Query<(Entity, &MaxLinearSpeed, &Transform, Option<&Children>), With<Agent>>,
+    flags: Query<Entity, With<Flag>>,
     raycasts: &[(Vec3, Option<Entity>)],
 ) -> AgentState {
-    // TODO: handle the whole child entity thing with flag, etc.
-    let (entity, agent, max_speed, transform, flag) =
+    let (entity, max_speed, transform, children) =
         agent.single().expect("There should be exactly one agent");
+
+    let flag = children.and_then(|children| {
+        children.iter().find_map(|child| {
+            if let Ok(flag_entity) = flags.get(child) {
+                Some(flag_entity.index())
+            } else {
+                None
+            }
+        })
+    });
 
     AgentState {
         id: entity.index(),
         position: transform.translation.xz().into(),
         raycasts: raycasts.iter().map(|(pos, hit)| HitInfo {}).collect(),
-        flag: None,
+        flag,
         max_speed: max_speed.0,
     }
 }

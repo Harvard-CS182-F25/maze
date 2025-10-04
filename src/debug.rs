@@ -4,9 +4,7 @@ use bevy::{
     diagnostic::FrameTimeDiagnosticsPlugin, input::common_conditions::input_just_pressed,
     prelude::*,
 };
-use bevy_inspector_egui::{
-    DefaultInspectorConfigPlugin, bevy_egui::EguiPlugin, quick::WorldInspectorPlugin,
-};
+use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 
 pub struct DebugPlugin;
 

@@ -16,8 +16,6 @@ const WALL_THICKNESS: f32 = 1.0;
 pub struct ScenePlugin;
 impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<Wall>();
-
         app.insert_resource(AmbientLight {
             color: Color::WHITE,
             brightness: 1_500.0,

@@ -1,9 +1,8 @@
-use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::agent::{Agent, AgentGraphicsAssets};
+use crate::agent::Agent;
 use crate::flag::{CapturePoint, Flag, FlagCaptureCounts, FlagStatus};
-use crate::interaction_range::messages::{FlagCaptureMessage, FlagDropMessage, FlagPickupMessage};
+use crate::interaction_range::messages::{FlagDropMessage, FlagPickupMessage};
 
 use super::components::{InteractionRadius, InteractionRange, VisibleRange};
 use super::visual::RingAssets;
@@ -68,41 +67,116 @@ pub fn remove_ring_on_radius_removal(
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub fn handle_flag_pickups(
     mut commands: Commands,
     mut reader: MessageReader<FlagPickupMessage>,
-    mut flags: Query<(&mut Flag, &mut Visibility, &mut Transform)>,
-    agent_graphics: Option<Res<AgentGraphicsAssets>>,
+    agents: Query<(Entity, &Transform, Option<&Children>), With<Agent>>,
+    mut flags: Query<(Entity, &mut Flag, &mut Transform, &InteractionRadius), Without<Agent>>,
 ) {
-    unimplemented!()
-}
+    for FlagPickupMessage { agent_id } in reader.read() {
+        let agent = agents.iter().find(|(e, _, _)| e.index() == *agent_id);
+        let Some((agent_entity, agent_transform, agent_children)) = agent else {
+            eprintln!("Agent with id {} either does not exist", agent_id);
+            continue;
+        };
 
-pub fn detect_flag_capture(
-    mut writer: MessageWriter<FlagCaptureMessage>,
-    agents: Query<(Entity, &Transform), With<Agent>>,
-    capture_points: Query<(Entity, &InteractionRadius, &Transform, &CapturePoint)>,
-) {
-    unimplemented!()
-}
+        // check to see if the agent is already carrying a flag
+        let carrying_flag = agent_children
+            .is_some_and(|children| children.iter().any(|child| flags.get(child).is_ok()));
+        if carrying_flag {
+            eprintln!(
+                "Agent with id {} is already carrying a flag and can not pick up another",
+                agent_id
+            );
+            continue;
+        }
 
-pub fn handle_flag_capture(
-    mut commands: Commands,
-    mut reader: MessageReader<FlagCaptureMessage>,
-    mut agents: Query<&mut Agent>,
-    mut flags: Query<(&mut Flag, &mut Visibility, &mut Transform)>,
-    mut capture_points: Query<&mut CapturePoint>,
-    mut capture_counts: ResMut<FlagCaptureCounts>,
-    agent_graphics: Option<Res<AgentGraphicsAssets>>,
-) {
-    unimplemented!()
+        let agent_position = agent_transform.translation.xz();
+        for (flag_entity, mut flag, mut flag_transform, InteractionRadius(radius)) in &mut flags {
+            let flag_position = flag_transform.translation.xz();
+            let distance = agent_position.distance(flag_position);
+
+            if distance < *radius && flag.status == FlagStatus::Dropped {
+                commands.entity(agent_entity).add_child(flag_entity);
+                flag.status = FlagStatus::PickedUp;
+                flag_transform.translation = Vec3::new(0.0, 0.5, 0.0); // lift flag above agent
+                break;
+            }
+        }
+    }
 }
 
 pub fn handle_flag_drop(
     mut commands: Commands,
     mut reader: MessageReader<FlagDropMessage>,
-    mut agents: Query<&mut Agent>,
-    mut flags: Query<(&mut Flag, &mut Visibility, &mut Transform)>,
-    agent_graphics: Option<Res<AgentGraphicsAssets>>,
+    agents: Query<(Entity, &Transform, Option<&Children>), With<Agent>>,
+    mut flags: Query<(Entity, &mut Flag, &mut Transform), Without<Agent>>,
 ) {
-    unimplemented!()
+    for FlagDropMessage { agent_id } in reader.read() {
+        let agent = agents.iter().find(|(e, _, _)| e.index() == *agent_id);
+        let Some((agent_entity, agent_transform, agent_children)) = agent else {
+            eprintln!("Agent with id {} either does not exist", agent_id);
+            continue;
+        };
+
+        let flag_entity = agent_children.and_then(|children| {
+            children.iter().find_map(|child| {
+                if let Ok((flag_entity, _, _)) = flags.get(child) {
+                    Some(flag_entity)
+                } else {
+                    None
+                }
+            })
+        });
+        let Some(flag_entity) = flag_entity else {
+            eprintln!(
+                "Agent with id {} is not carrying a flag and can not drop one",
+                agent_id
+            );
+            continue;
+        };
+
+        if let Ok((flag_entity, mut flag, mut flag_transform)) = flags.get_mut(flag_entity) {
+            commands.entity(agent_entity).remove_child(flag_entity);
+            flag.status = FlagStatus::Dropped;
+            flag_transform.translation = agent_transform.translation
+        }
+    }
+}
+
+pub fn handle_flag_capture(
+    mut commands: Commands,
+    mut flags: Query<(Entity, &mut Flag, &mut Transform), Without<CapturePoint>>,
+    mut capture_points: Query<
+        (Entity, &Transform, Option<&Children>, &InteractionRadius),
+        With<CapturePoint>,
+    >,
+    mut capture_counts: ResMut<FlagCaptureCounts>,
+) {
+    for (
+        capture_point_entity,
+        capture_point_transform,
+        capture_point_children,
+        &InteractionRadius(radius),
+    ) in &mut capture_points
+    {
+        let has_flag = capture_point_children
+            .is_some_and(|children| children.iter().any(|child| flags.get(child).is_ok()));
+        if has_flag {
+            continue;
+        }
+        let capture_point_position = capture_point_transform.translation.xz();
+        for (flag_entity, mut flag, mut flag_transform) in &mut flags {
+            let flag_position = flag_transform.translation.xz();
+            let distance = capture_point_position.distance(flag_position);
+
+            if distance < radius && flag.status == FlagStatus::Dropped {
+                commands.entity(capture_point_entity).add_child(flag_entity);
+                capture_counts.0 += 1;
+                flag.status = FlagStatus::Captured;
+                flag_transform.translation = Vec3::ZERO;
+            }
+        }
+    }
 }
