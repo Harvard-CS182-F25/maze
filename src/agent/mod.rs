@@ -4,27 +4,53 @@ mod visual;
 
 use bevy::prelude::*;
 use derivative::Derivative;
+use pyo3::prelude::*;
+use pyo3_stub_gen::derive::gen_stub_pyclass;
 use serde::{Deserialize, Serialize};
 
 pub use components::*;
-pub use visual::*;
 
 use crate::core::MazeConfig;
 
 pub const COLLISION_LAYER_AGENT: u32 = 1 << 1;
 
+#[gen_stub_pyclass]
+#[pyclass(name = "AgentConfig")]
 #[derive(Debug, Clone, Resource, Reflect, Derivative, Serialize, Deserialize)]
 #[derivative(Default)]
 #[reflect(Resource)]
 #[serde(default)]
 pub struct AgentConfig {
+    #[pyo3(get, set)]
     #[derivative(Default(value = "\"Agent\".to_string()"))]
     pub name: String,
+
+    #[pyo3(get, set)]
     #[derivative(Default(value = "10.0"))]
     pub speed: f32,
+
+    #[pyo3(get, set)]
     pub position: (f32, f32),
+
+    #[pyo3(get, set)]
     #[derivative(Default(value = "60.0"))]
     pub policy_hz: f32,
+}
+
+#[pymethods]
+impl AgentConfig {
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!("AgentConfig({})", self.__str__()?))
+    }
+
+    fn __str__(&self) -> PyResult<String> {
+        serde_json::to_string_pretty(self).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to serialize AgentConfig: {}",
+                e
+            ))
+        })
+    }
 }
 
 pub struct AgentPlugin;

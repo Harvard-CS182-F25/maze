@@ -1,4 +1,4 @@
-from maze_core._core import run, GameState, Action, AgentState, HitInfo
+from maze_core._core import run, parse_config, GameState, Action, AgentState, HitInfo, MazeConfig, AgentConfig, FlagConfig, CapturePointConfig, CameraConfig
 
 from typing import Protocol, runtime_checkable
 
@@ -13,4 +13,4 @@ class AgentProtocol(Protocol):
 
     def get_action(self, game_state: GameState) -> Action: ...
 
-__all__ = ["run", "GameState", "Action", "AgentState", "HitInfo", "AgentProtocol"]
+__all__ = ["run", "parse_config", "GameState", "Action", "AgentState", "HitInfo", "AgentProtocol", "MazeConfig", "AgentConfig", "FlagConfig", "CapturePointConfig", "CameraConfig"]

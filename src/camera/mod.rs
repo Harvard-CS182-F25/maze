@@ -2,15 +2,36 @@ mod systems;
 
 use bevy::prelude::*;
 use derivative::Derivative;
+use pyo3::prelude::*;
+use pyo3_stub_gen::derive::gen_stub_pyclass;
 use serde::{Deserialize, Serialize};
 
+#[gen_stub_pyclass]
+#[pyclass(name = "CameraConfig")]
 #[derive(Debug, Clone, Resource, Reflect, Derivative, Serialize, Deserialize)]
 #[derivative(Default)]
 #[serde(default)]
 #[reflect(Resource)]
 pub struct CameraConfig {
+    #[pyo3(get, set)]
     #[derivative(Default(value = "-0.15"))]
     pub scale: f32,
+}
+
+#[pymethods]
+impl CameraConfig {
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!("CameraConfig({})", self.__str__()?))
+    }
+
+    fn __str__(&self) -> PyResult<String> {
+        serde_json::to_string_pretty(self).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to serialize CameraConfig: {}",
+                e
+            ))
+        })
+    }
 }
 
 pub struct CameraPlugin;
