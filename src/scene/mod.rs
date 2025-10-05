@@ -15,6 +15,7 @@ use crate::core::MazeConfig;
 
 pub const COLLISION_LAYER_WALL: u32 = 1 << 0;
 pub const WALL_HEIGHT: f32 = 5.0;
+pub const NUM_AGENT_RAYS: u32 = 4;
 const WALL_THICKNESS: f32 = 1.0;
 
 #[gen_stub_pyclass]

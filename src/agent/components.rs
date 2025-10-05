@@ -7,13 +7,35 @@ use pyo3_stub_gen::derive::gen_stub_pyclass_complex_enum;
 use crate::{
     agent::COLLISION_LAYER_AGENT,
     character_controller::{CharacterControllerBundle, MaxLinearSpeed},
-    scene::COLLISION_LAYER_WALL,
+    scene::{COLLISION_LAYER_WALL, NUM_AGENT_RAYS},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Component, Reflect, Derivative)]
 #[derivative(Default)]
 #[reflect(Component)]
 pub struct Agent;
+
+#[derive(Debug, Clone, Default, Component, Reflect)]
+#[reflect(Component)]
+pub struct RayCasters(pub Vec<RayCaster>);
+
+impl RayCasters {
+    pub fn new(num_rays: u32) -> Self {
+        let thetas = (0..num_rays).map(|i| i as f32 * (std::f32::consts::TAU / num_rays as f32));
+
+        RayCasters(
+            thetas
+                .map(|theta| {
+                    let direction = Vec3::new(theta.cos(), 0.0, theta.sin());
+                    RayCaster::new(Vec3::ZERO, Dir3::new(direction).unwrap())
+                        .with_max_hits(1)
+                        .with_max_distance(20.0)
+                        .with_query_filter(SpatialQueryFilter::from_mask(COLLISION_LAYER_WALL))
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+}
 
 #[derive(Debug, Clone, Bundle)]
 pub struct AgentBundle {
@@ -25,6 +47,7 @@ pub struct AgentBundle {
     pub character_controller: CharacterControllerBundle,
     pub collision_layer: CollisionLayers,
     pub max_speed: MaxLinearSpeed,
+    pub raycasters: RayCasters,
 }
 
 #[derive(Debug, Clone, PartialEq, Reflect)]
@@ -64,6 +87,7 @@ impl Default for AgentBundle {
             restitution: Restitution::ZERO.with_combine_rule(CoefficientCombine::Min),
             character_controller: CharacterControllerBundle::new(Collider::cuboid(1.0, 1.0, 1.0)),
             collision_layer,
+            raycasters: RayCasters::new(NUM_AGENT_RAYS),
         }
     }
 }
