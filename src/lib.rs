@@ -117,7 +117,6 @@ fn force_focus(
     if let Ok((entity, _window)) = q.single()
         && let Some(win) = winit_windows.get_window(entity)
     {
-        // winit 0.29+: request focus (no-op on some platforms)
         win.focus_window();
     }
 }
