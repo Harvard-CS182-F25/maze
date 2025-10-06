@@ -164,7 +164,10 @@ jobs:
               run: |
                   python -m venv .venv
                   .\.venv\Scripts\python.exe -m pip install -U pip
-                  .\.venv\Scripts\pip.exe install dist\*.whl
+                  # Resolve the wheel path explicitly (PowerShell doesn't expand wildcards)
+                  $whl = Get-ChildItem dist\*win_amd64*.whl | Select-Object -First 1
+                  if (-not $whl) { Write-Error "No wheel found in dist\"; exit 1 }
+                  .\.venv\Scripts\pip.exe install "$($whl.FullName)"
                   .\.venv\Scripts\python.exe -c "import maze_core; print('import ok')"
 
             - uses: actions/upload-artifact@v4
