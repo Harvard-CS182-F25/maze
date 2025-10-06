@@ -14,6 +14,7 @@ pub fn spawn_agents(
         &config.agent.name,
         Vec3::new(config.agent.position.0, 0.0, config.agent.position.1),
         config.agent.speed,
+        config.maze_generation.cell_size,
     ));
 
     info!("Spawning agent at position: {:?}", config.agent.position);

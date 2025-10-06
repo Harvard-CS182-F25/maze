@@ -71,6 +71,8 @@ serde_yaml = "0.9.34"
 crossbeam-channel = "0.5.15"
 anyhow = "1.0.100"
 maze_generator = "2.0.0"
+rand_distr = "0.5.1"
+rand = "0.9.2"
 
 [profile.dev]
 opt-level = 1

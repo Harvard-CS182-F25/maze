@@ -3216,6 +3216,8 @@ dependencies = [
  "pyo3",
  "pyo3-build-config",
  "pyo3-stub-gen",
+ "rand 0.9.2",
+ "rand_distr",
  "serde",
  "serde_json",
  "serde_yaml",

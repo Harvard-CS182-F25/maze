@@ -2,7 +2,11 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_complex_enum};
+use rand::rng;
+use rand_distr::Distribution;
+use rand_distr::Normal;
 
+use crate::core::MazeConfig;
 use crate::{
     agent::{Agent, RayCasters},
     character_controller::MaxLinearSpeed,
@@ -79,8 +83,27 @@ impl std::fmt::Display for HitInfo {
     }
 }
 
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn classify(
+    e: Entity,
+    kinds: &Query<(Option<&Wall>, Option<&Flag>, Option<&CapturePoint>)>,
+) -> Option<CollidedEntity> {
+    if let Ok((is_wall, is_flag, is_cp)) = kinds.get(e) {
+        if is_wall.is_some() {
+            return Some(CollidedEntity::Wall());
+        }
+        if let Some(_f) = is_flag {
+            return Some(CollidedEntity::Flag(e.index()));
+        }
+        if let Some(_cp) = is_cp {
+            return Some(CollidedEntity::CapturePoint(e.index()));
+        }
+    }
+    Some(CollidedEntity::Unknown(e.index()))
+}
+
+#[allow(clippy::type_complexity)]
 pub fn collect_agent_state(
+    config: &MazeConfig,
     spatial_query: &SpatialQuery,
     agent: Query<
         (
@@ -92,24 +115,20 @@ pub fn collect_agent_state(
         ),
         With<Agent>,
     >,
-    walls: Query<Entity, With<Wall>>,
-    flags: Query<Entity, With<Flag>>,
-    capture_points: Query<Entity, With<CapturePoint>>,
-) -> AgentState {
+    kinds: &Query<(Option<&Wall>, Option<&Flag>, Option<&CapturePoint>)>,
+) -> (AgentState, AgentState) {
     let (entity, max_speed, agent_transform, raycasters, children) =
         agent.single().expect("There should be exactly one agent");
 
-    let flag = children.and_then(|children| {
-        children.iter().find_map(|child| {
-            if let Ok(flag_entity) = flags.get(child) {
-                Some(flag_entity.index())
-            } else {
-                None
-            }
+    let flag = children.and_then(|kids| {
+        kids.iter().find_map(|child| {
+            let (_, f, _) = kinds.get(child).ok()?;
+            f.as_ref()?;
+            Some(child.index())
         })
     });
 
-    let mut hits = raycasters
+    let mut raycasts = raycasters
         .0
         .iter()
         .map(|raycaster| {
@@ -123,15 +142,7 @@ pub fn collect_agent_state(
                 )
                 .map(|hit| HitInfo {
                     theta: raycaster.direction.z.atan2(raycaster.direction.x),
-                    hit: if walls.get(hit.entity).is_ok() {
-                        Some(CollidedEntity::Wall())
-                    } else if let Ok(flag_entity) = flags.get(hit.entity) {
-                        Some(CollidedEntity::Flag(flag_entity.index()))
-                    } else if let Ok(capture_point_entity) = capture_points.get(hit.entity) {
-                        Some(CollidedEntity::CapturePoint(capture_point_entity.index()))
-                    } else {
-                        Some(CollidedEntity::Unknown(hit.entity.index()))
-                    },
+                    hit: classify(hit.entity, kinds),
                     distance: Some(hit.distance),
                 })
                 .unwrap_or(HitInfo {
@@ -141,13 +152,40 @@ pub fn collect_agent_state(
                 })
         })
         .collect::<Vec<_>>();
-    hits.sort_by(|a, b| a.theta.partial_cmp(&b.theta).unwrap());
+    raycasts.sort_by(|a, b| a.theta.partial_cmp(&b.theta).unwrap());
 
-    AgentState {
+    let odometry_noise_distribution = Normal::new(0.0, config.agent.odometry_stddev)
+        .expect("Normal distribution should be valid");
+    let range_noise_distribution =
+        Normal::new(0.0, config.agent.range_stddev).expect("Normal distribution should be valid");
+
+    let true_agent_state = AgentState {
         id: entity.index(),
         position: agent_transform.translation.xz().into(),
-        raycasts: hits,
+        raycasts,
         flag,
         max_speed: max_speed.0,
-    }
+    };
+
+    let noisy_agent_state = AgentState {
+        position: (
+            agent_transform.translation.x + odometry_noise_distribution.sample(&mut rng()),
+            agent_transform.translation.z + odometry_noise_distribution.sample(&mut rng()),
+        ),
+        raycasts: true_agent_state
+            .raycasts
+            .clone()
+            .into_iter()
+            .map(|hit_info| HitInfo {
+                distance: hit_info.distance.map(|d| {
+                    let noise = range_noise_distribution.sample(&mut rng());
+                    (d + noise).clamp(0.0, config.maze_generation.cell_size)
+                }),
+                ..hit_info
+            })
+            .collect::<Vec<_>>(),
+        ..true_agent_state
+    };
+
+    (noisy_agent_state, true_agent_state)
 }

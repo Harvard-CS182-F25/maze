@@ -20,7 +20,7 @@ pub struct Agent;
 pub struct RayCasters(pub Vec<RayCaster>);
 
 impl RayCasters {
-    pub fn new(num_rays: u32) -> Self {
+    pub fn new(num_rays: u32, max_distance: f32) -> Self {
         let thetas = (0..num_rays).map(|i| i as f32 * (std::f32::consts::TAU / num_rays as f32));
 
         RayCasters(
@@ -29,7 +29,7 @@ impl RayCasters {
                     let direction = Vec3::new(theta.cos(), 0.0, theta.sin());
                     RayCaster::new(Vec3::ZERO, Dir3::new(direction).unwrap())
                         .with_max_hits(1)
-                        .with_max_distance(20.0)
+                        .with_max_distance(max_distance)
                         .with_query_filter(SpatialQueryFilter::from_mask(COLLISION_LAYER_WALL))
                 })
                 .collect::<Vec<_>>(),
@@ -60,12 +60,13 @@ pub enum Action {
 }
 
 impl AgentBundle {
-    pub fn new(name: &str, position: Vec3, max_speed: f32) -> Self {
+    pub fn new(name: &str, position: Vec3, max_speed: f32, max_distance: f32) -> Self {
         Self {
             name: Name::new(name.to_string()),
             agent: Agent,
             position: Transform::from_translation(position),
             max_speed: MaxLinearSpeed(max_speed),
+            raycasters: RayCasters::new(NUM_AGENT_RAYS, max_distance),
             ..Default::default()
         }
     }
@@ -87,7 +88,7 @@ impl Default for AgentBundle {
             restitution: Restitution::ZERO.with_combine_rule(CoefficientCombine::Min),
             character_controller: CharacterControllerBundle::new(Collider::cuboid(1.0, 1.0, 1.0)),
             collision_layer,
-            raycasters: RayCasters::new(NUM_AGENT_RAYS),
+            raycasters: RayCasters::new(NUM_AGENT_RAYS, 20.0),
         }
     }
 }

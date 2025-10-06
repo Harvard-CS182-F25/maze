@@ -113,10 +113,12 @@ impl PolicyBridge {
     }
 }
 
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn send_game_states(
     time: Res<Time>,
     mut t: ResMut<PolicyTimer>,
     scores: Res<FlagCaptureCounts>,
+    config: Res<MazeConfig>,
     bridge: Option<Res<Bridge>>,
     spatial_query: SpatialQuery,
     agent: Query<
@@ -129,9 +131,8 @@ fn send_game_states(
         ),
         With<Agent>,
     >,
-    flags: Query<Entity, With<Flag>>,
-    walls: Query<Entity, With<Wall>>,
-    capture_points: Query<Entity, With<CapturePoint>>,
+    kinds: Query<(Option<&Wall>, Option<&Flag>, Option<&CapturePoint>)>,
+    flags: Query<&Flag>,
 ) {
     if !t.0.tick(time.delta()).just_finished() {
         return;
@@ -141,15 +142,26 @@ fn send_game_states(
         return;
     };
 
-    let game_state = GameState {
-        agent: collect_agent_state(&spatial_query, agent, walls, flags, capture_points),
+    let (noisy_agent_state, true_agent_state) =
+        collect_agent_state(&config, &spatial_query, agent, &kinds);
+
+    let noisy_state = GameState {
+        agent: noisy_agent_state,
         total_flags: flags.iter().count() as u32,
         collected_flags: scores.0,
         world_width: 100.0,
         world_height: 100.0,
     };
 
-    match bridge.agent_bridge.tx_state.try_send(game_state.clone()) {
+    let true_state = GameState {
+        agent: true_agent_state,
+        total_flags: flags.iter().count() as u32,
+        collected_flags: scores.0,
+        world_width: 100.0,
+        world_height: 100.0,
+    };
+
+    match bridge.agent_bridge.tx_state.try_send(noisy_state) {
         Ok(_) => {}
         Err(TrySendError::Full(_)) => { /* worker still busy; skip this one */ }
         Err(TrySendError::Disconnected(_)) => {
@@ -159,7 +171,7 @@ fn send_game_states(
     }
 
     if let Some(test) = &bridge.test_bridge {
-        match test.tx_state.try_send(game_state) {
+        match test.tx_state.try_send(true_state) {
             Ok(_) => {}
             Err(TrySendError::Full(_)) => {}
             Err(TrySendError::Disconnected(_)) => { /* test harness died */ }
@@ -212,12 +224,12 @@ fn on_test_harness_stop(bridge: Option<Res<Bridge>>, mut exit: MessageWriter<App
     let Some(bridge) = bridge else {
         return;
     };
-    if let Some(test) = &bridge.test_bridge {
-        if test.rx_stop.try_recv().is_ok() {
-            println!("Test harness requested stop; exiting");
+    if let Some(test) = &bridge.test_bridge
+        && test.rx_stop.try_recv().is_ok()
+    {
+        println!("Test harness requested stop; exiting");
 
-            exit.write(AppExit::Success);
-        }
+        exit.write(AppExit::Success);
     }
 }
 
@@ -233,5 +245,5 @@ fn shutdown_workers_on_exit(
 }
 
 fn check_agent_exists(id: u32, agents: Query<(Entity, &Agent)>) -> bool {
-    agents.iter().find(|(e, _a)| e.index() == id).is_some()
+    agents.iter().any(|(e, _a)| e.index() == id)
 }
