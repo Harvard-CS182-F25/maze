@@ -113,6 +113,9 @@ fn _core(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<python::game_state::GameState>()?;
     m.add_class::<python::game_state::AgentState>()?;
     m.add_class::<python::game_state::HitInfo>()?;
+    m.add_class::<python::game_state::EntityType>()?;
+    m.add_class::<python::occupancy_grid::OccupancyGrid>()?;
+    m.add_class::<python::occupancy_grid::OccupancyCellView>()?;
 
     Ok(())
 }

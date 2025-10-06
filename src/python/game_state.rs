@@ -47,9 +47,9 @@ pub struct AgentState {
 }
 
 #[gen_stub_pyclass_complex_enum]
-#[pyclass]
-#[derive(Clone, Debug, PartialEq)]
-pub enum CollidedEntity {
+#[pyclass(name = "EntityType", frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntityType {
     Wall(),
     Flag(u32),
     CapturePoint(u32),
@@ -63,7 +63,7 @@ pub struct HitInfo {
     #[pyo3(get)]
     pub theta: f32,
     #[pyo3(get)]
-    pub hit: Option<CollidedEntity>,
+    pub hit: Option<EntityType>,
     #[pyo3(get)]
     pub distance: Option<f32>,
 }
@@ -86,19 +86,19 @@ impl std::fmt::Display for HitInfo {
 fn classify(
     e: Entity,
     kinds: &Query<(Option<&Wall>, Option<&Flag>, Option<&CapturePoint>)>,
-) -> Option<CollidedEntity> {
+) -> Option<EntityType> {
     if let Ok((is_wall, is_flag, is_cp)) = kinds.get(e) {
         if is_wall.is_some() {
-            return Some(CollidedEntity::Wall());
+            return Some(EntityType::Wall());
         }
         if let Some(_f) = is_flag {
-            return Some(CollidedEntity::Flag(e.index()));
+            return Some(EntityType::Flag(e.index()));
         }
         if let Some(_cp) = is_cp {
-            return Some(CollidedEntity::CapturePoint(e.index()));
+            return Some(EntityType::CapturePoint(e.index()));
         }
     }
-    Some(CollidedEntity::Unknown(e.index()))
+    Some(EntityType::Unknown(e.index()))
 }
 
 #[allow(clippy::type_complexity)]

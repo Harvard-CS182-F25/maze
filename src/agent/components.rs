@@ -52,7 +52,7 @@ pub struct AgentBundle {
 
 #[derive(Debug, Clone, PartialEq, Reflect)]
 #[gen_stub_pyclass_complex_enum]
-#[pyclass]
+#[pyclass(name = "Action")]
 pub enum Action {
     Move { id: u32, velocity: (f32, f32) },
     PickupFlag { id: u32 },
