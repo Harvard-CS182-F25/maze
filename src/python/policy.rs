@@ -1,3 +1,5 @@
+use std::sync::{Arc, RwLock};
+
 use avian3d::prelude::SpatialQuery;
 use bevy::prelude::*;
 use crossbeam_channel::{Receiver, Sender, TrySendError};
@@ -5,9 +7,11 @@ use pyo3::prelude::*;
 
 use crate::agent::RayCasters;
 use crate::character_controller::MaxLinearSpeed;
+use crate::core::{PlayerGrid, TrueGrid};
 use crate::flag::{CapturePoint, Flag, FlagCaptureCounts};
 use crate::interaction_range::{FlagDropMessage, FlagPickupMessage};
 use crate::python::game_state::collect_agent_state;
+use crate::python::occupancy_grid::{OccupancyGrid, OccupancyGridView};
 use crate::scene::Wall;
 use crate::{
     agent::{Action, Agent},
@@ -23,13 +27,18 @@ struct Bridge {
 }
 
 struct PolicyBridge {
-    pub tx_state: Sender<GameState>,
+    pub tx_state: Sender<(GameState, Arc<RwLock<Py<OccupancyGrid>>>)>,
     pub rx_action: Receiver<Action>,
 }
 
 #[derive(Clone)]
+#[allow(clippy::type_complexity)]
 pub struct TestHarnessBridge {
-    pub tx_state: Sender<GameState>,
+    pub tx_state: Sender<(
+        GameState,
+        Arc<RwLock<Py<OccupancyGrid>>>,
+        Arc<RwLock<Py<OccupancyGrid>>>,
+    )>,
     pub rx_stop: Receiver<()>,
 }
 
@@ -47,7 +56,7 @@ impl Plugin for PythonPolicyBridgePlugin {
         let hz = self.config.agent.policy_hz.clamp(1.0, 240.0);
         let interval = 1.0_f32 / hz;
 
-        let bridge = Python::attach(|py| {
+        let agent_bridge = Python::attach(|py| {
             PolicyBridge::start(self.agent_policy.clone_ref(py))
                 .expect("Failed to start agent policy")
         });
@@ -57,15 +66,9 @@ impl Plugin for PythonPolicyBridgePlugin {
             TimerMode::Repeating,
         )));
 
-        let test = if self.config.headless {
-            unimplemented!()
-        } else {
-            None
-        };
-
         app.insert_resource(Bridge {
-            agent_bridge: bridge,
-            test_bridge: test,
+            agent_bridge,
+            test_bridge: self.test_harness.clone(),
         });
 
         app.add_systems(
@@ -79,15 +82,17 @@ impl Plugin for PythonPolicyBridgePlugin {
 
 impl PolicyBridge {
     pub fn start(policy: Py<PyAny>) -> anyhow::Result<Self> {
-        let (tx_state, rx_state) = crossbeam_channel::bounded::<GameState>(60);
+        let (tx_state, rx_state) =
+            crossbeam_channel::bounded::<(GameState, Arc<RwLock<Py<OccupancyGrid>>>)>(60);
         let (tx_action, rx_action) = crossbeam_channel::bounded::<Action>(60);
 
         std::thread::spawn(move || {
-            while let Ok(state) = rx_state.recv() {
+            while let Ok((state, grid)) = rx_state.recv() {
                 let action = Python::attach(|py| -> PyResult<Action> {
                     let state = Py::new(py, state)?;
+                    let grid = Py::new(py, OccupancyGridView { inner: grid })?;
                     let action: Action = policy
-                        .call_method(py, "get_action", (state,), None)?
+                        .call_method(py, "get_action", (state, grid), None)?
                         .extract(py)?;
                     Ok(action)
                 });
@@ -119,6 +124,8 @@ fn send_game_states(
     mut t: ResMut<PolicyTimer>,
     scores: Res<FlagCaptureCounts>,
     config: Res<MazeConfig>,
+    player_grid: Res<PlayerGrid>,
+    true_grid: Res<TrueGrid>,
     bridge: Option<Res<Bridge>>,
     spatial_query: SpatialQuery,
     agent: Query<
@@ -161,7 +168,11 @@ fn send_game_states(
         world_height: 100.0,
     };
 
-    match bridge.agent_bridge.tx_state.try_send(noisy_state) {
+    match bridge
+        .agent_bridge
+        .tx_state
+        .try_send((noisy_state, player_grid.0.clone()))
+    {
         Ok(_) => {}
         Err(TrySendError::Full(_)) => { /* worker still busy; skip this one */ }
         Err(TrySendError::Disconnected(_)) => {
@@ -171,7 +182,10 @@ fn send_game_states(
     }
 
     if let Some(test) = &bridge.test_bridge {
-        match test.tx_state.try_send(true_state) {
+        match test
+            .tx_state
+            .try_send((true_state, true_grid.0.clone(), player_grid.0.clone()))
+        {
             Ok(_) => {}
             Err(TrySendError::Full(_)) => {}
             Err(TrySendError::Disconnected(_)) => { /* test harness died */ }

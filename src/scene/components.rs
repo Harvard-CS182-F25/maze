@@ -43,3 +43,6 @@ impl WallBundle {
         }
     }
 }
+
+#[derive(Component)]
+pub struct GridPlane<T>(pub std::marker::PhantomData<T>);

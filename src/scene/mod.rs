@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 pub use components::*;
 pub use visual::*;
 
-use crate::core::MazeConfig;
+use crate::core::{MazeConfig, PlayerGrid, TrueGrid};
 
 pub const COLLISION_LAYER_WALL: u32 = 1 << 0;
 pub const WALL_HEIGHT: f32 = 5.0;
@@ -38,6 +38,13 @@ pub struct MazeGenerationConfig {
     pub cell_size: f32,
 }
 
+#[derive(Resource)]
+pub struct GridVisualization<T> {
+    pub handle: Handle<Image>,
+    pub material: Handle<StandardMaterial>,
+    _marker: std::marker::PhantomData<T>,
+}
+
 pub struct ScenePlugin;
 impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {
@@ -48,8 +55,23 @@ impl Plugin for ScenePlugin {
         });
 
         app.add_systems(PreStartup, init_wall_assets);
-        app.add_systems(Startup, systems::setup_scene);
-        app.add_systems(Startup, systems::spawn_walls);
+        app.add_systems(Startup, (systems::setup_scene, systems::spawn_walls));
+        app.add_systems(
+            Startup,
+            (
+                systems::spawn_grid_texture::<PlayerGrid>,
+                // systems::spawn_grid_texture::<TrueGrid>,
+            )
+                .run_if(|config: Res<MazeConfig>| !config.headless),
+        );
+        app.add_systems(
+            Update,
+            (
+                systems::update_grid_texture::<PlayerGrid>,
+                // systems::update_grid_texture::<TrueGrid>,
+            )
+                .run_if(|config: Res<MazeConfig>| !config.headless),
+        );
     }
 }
 

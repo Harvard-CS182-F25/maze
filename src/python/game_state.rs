@@ -48,7 +48,7 @@ pub struct AgentState {
 
 #[gen_stub_pyclass_complex_enum]
 #[pyclass(name = "EntityType", frozen)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
 pub enum EntityType {
     Wall(),
     Flag(u32),

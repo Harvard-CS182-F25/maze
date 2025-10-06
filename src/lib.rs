@@ -8,14 +8,19 @@ mod interaction_range;
 mod python;
 mod scene;
 
+use std::sync::{Arc, RwLock};
+
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
+use bevy::winit::WinitWindows;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 
 use crate::core::MazeConfig;
 use crate::python::game_state::GameState;
+use crate::python::occupancy_grid::OccupancyGrid;
 use crate::python::policy::{PythonPolicyBridgePlugin, TestHarnessBridge};
 use crate::python::state_queue::StateQueue;
 
@@ -37,16 +42,19 @@ fn generate_app(
     test_harness: Option<TestHarnessBridge>,
 ) -> App {
     let mut app = App::new();
-    app.add_plugins((
-        DefaultPlugins.set(WindowPlugin {
+    app.add_plugins((PhysicsPlugins::default(),));
+
+    if !config.headless {
+        app.add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Maze".to_string(),
                 ..Default::default()
             }),
             ..Default::default()
-        }),
-        PhysicsPlugins::default(),
-    ));
+        }));
+
+        // app.add_systems(PostStartup, force_focus);
+    }
 
     if config.debug {
         app.add_plugins(debug::DebugPlugin);
@@ -76,7 +84,11 @@ fn run(py: Python<'_>, config: MazeConfig, policy: Py<PyAny>) -> PyResult<Option
         });
         Ok(None)
     } else {
-        let (tx_state, rx_state) = crossbeam_channel::bounded::<GameState>(60);
+        let (tx_state, rx_state) = crossbeam_channel::bounded::<(
+            GameState,
+            Arc<RwLock<Py<OccupancyGrid>>>,
+            Arc<RwLock<Py<OccupancyGrid>>>,
+        )>(60);
         let (tx_stop, rx_stop) = crossbeam_channel::bounded::<()>(1);
 
         let rate_hz = config.agent.policy_hz;
@@ -95,6 +107,18 @@ fn run(py: Python<'_>, config: MazeConfig, policy: Py<PyAny>) -> PyResult<Option
             rate_hz,
             join: Some(join),
         }))
+    }
+}
+
+fn force_focus(
+    winit_windows: NonSend<WinitWindows>,
+    q: Query<(Entity, &Window), With<PrimaryWindow>>,
+) {
+    if let Ok((entity, _window)) = q.single()
+        && let Some(win) = winit_windows.get_window(entity)
+    {
+        // winit 0.29+: request focus (no-op on some platforms)
+        win.focus_window();
     }
 }
 

@@ -1,16 +1,18 @@
+use std::sync::{Arc, RwLock};
+
+use bevy::prelude::*;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::python::game_state::EntityType;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Reflect)]
 pub struct OccupancyGridEntry {
-    assignment: Option<EntityType>,
-    p_free: f32,
-    p_wall: f32,
-    p_flag: f32,
-    p_capture_point: f32,
-    p_unknown: f32,
+    pub assignment: Option<EntityType>,
+    pub p_free: f32,
+    pub p_wall: f32,
+    pub p_flag: f32,
+    pub p_capture_point: f32,
 }
 
 impl Default for OccupancyGridEntry {
@@ -21,7 +23,6 @@ impl Default for OccupancyGridEntry {
             p_wall: 0.0,
             p_flag: 0.0,
             p_capture_point: 0.0,
-            p_unknown: 1.0,
         }
     }
 }
@@ -36,7 +37,7 @@ impl std::fmt::Display for OccupancyGridEntry {
             self.p_wall,
             self.p_flag,
             self.p_capture_point,
-            self.p_unknown
+            1.0 - (self.p_free + self.p_wall + self.p_flag + self.p_capture_point)
         )
     }
 }
@@ -56,6 +57,16 @@ impl OccupancyCellView {
         let grid = self.grid.borrow(py);
         let entry = &grid.grid[self.index];
         Ok(entry.assignment)
+    }
+
+    #[setter]
+    pub fn set_assignment(&self, value: Option<EntityType>) -> PyResult<()> {
+        Python::attach(|py| {
+            let mut grid = self.grid.borrow_mut(py);
+            let entry = &mut grid.grid[self.index];
+            entry.assignment = value;
+            Ok(())
+        })
     }
 
     #[getter]
@@ -125,23 +136,6 @@ impl OccupancyCellView {
             Ok(())
         })
     }
-
-    #[getter]
-    pub fn p_unknown(&self, py: Python) -> PyResult<f32> {
-        let grid = self.grid.borrow(py);
-        let entry = &grid.grid[self.index];
-        Ok(entry.p_unknown)
-    }
-
-    #[setter]
-    pub fn set_p_unknown(&self, value: f32) -> PyResult<()> {
-        Python::attach(|py| {
-            let mut grid = self.grid.borrow_mut(py);
-            let entry = &mut grid.grid[self.index];
-            entry.p_unknown = value;
-            Ok(())
-        })
-    }
 }
 
 impl std::fmt::Display for OccupancyCellView {
@@ -156,9 +150,12 @@ impl std::fmt::Display for OccupancyCellView {
 
 #[gen_stub_pyclass]
 #[pyclass(name = "OccupancyGrid")]
+#[derive(Debug, Clone, Default, Reflect)]
 pub struct OccupancyGrid {
     pub grid: Vec<OccupancyGridEntry>,
+    #[pyo3(get)]
     pub width: usize,
+    #[pyo3(get)]
     pub height: usize,
 }
 
@@ -191,5 +188,53 @@ impl OccupancyGrid {
         let grid = slf.into_pyobject(py)?.unbind();
 
         Ok(OccupancyCellView { grid, index })
+    }
+
+    pub fn shape(&self) -> (usize, usize) {
+        (self.height, self.width)
+    }
+}
+
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct OccupancyGridView {
+    pub inner: Arc<RwLock<Py<OccupancyGrid>>>,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl OccupancyGridView {
+    fn __getitem__(&self, key: Py<PyAny>) -> PyResult<OccupancyCellView> {
+        Python::attach(|py| {
+            let grid = self.inner.read().unwrap();
+            let grid_ref = grid.borrow(py);
+            OccupancyGrid::__getitem__(grid_ref, py, key)
+        })
+    }
+
+    #[getter]
+    pub fn width(&self) -> PyResult<usize> {
+        Python::attach(|py| {
+            let grid = self.inner.read().unwrap();
+            let grid_ref = grid.borrow(py);
+            Ok(grid_ref.width)
+        })
+    }
+
+    #[getter]
+    pub fn height(&self) -> PyResult<usize> {
+        Python::attach(|py| {
+            let grid = self.inner.read().unwrap();
+            let grid_ref = grid.borrow(py);
+            Ok(grid_ref.height)
+        })
+    }
+
+    pub fn shape(&self) -> PyResult<(usize, usize)> {
+        Python::attach(|py| {
+            let grid = self.inner.read().unwrap();
+            let grid_ref = grid.borrow(py);
+            Ok(grid_ref.shape())
+        })
     }
 }

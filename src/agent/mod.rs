@@ -41,6 +41,10 @@ pub struct AgentConfig {
 
     #[pyo3(get, set)]
     pub range_stddev: f32,
+
+    #[pyo3(get, set)]
+    #[derivative(Default(value = "1.0"))]
+    pub occupancy_grid_cell_size: f32,
 }
 
 #[pymethods]

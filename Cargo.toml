@@ -24,6 +24,7 @@ bevy = { version = "0.17.2", default-features = false, features = [
     "bevy_color",                # Color management
     "bevy_core_pipeline",        # Bevy's GPU rendering architecture
     "bevy_gizmos",               # Gizmos (drawing debug lines and shapes)
+    "bevy_sprite",
     "bevy_image",                # Image support
     "bevy_input_focus",          # Input focusing system for UI
     "bevy_log",                  # Logging to console
