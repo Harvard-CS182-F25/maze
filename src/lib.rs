@@ -5,6 +5,7 @@ mod core;
 mod debug;
 mod flag;
 mod interaction_range;
+mod occupancy_grid;
 mod python;
 mod scene;
 
@@ -19,8 +20,8 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 
 use crate::core::MazeConfig;
+use crate::occupancy_grid::OccupancyGrid;
 use crate::python::game_state::GameState;
-use crate::python::occupancy_grid::OccupancyGrid;
 use crate::python::policy::{PythonPolicyBridgePlugin, TestHarnessBridge};
 use crate::python::state_queue::StateQueue;
 
@@ -137,8 +138,8 @@ fn _core(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<python::game_state::AgentState>()?;
     m.add_class::<python::game_state::HitInfo>()?;
     m.add_class::<python::game_state::EntityType>()?;
-    m.add_class::<python::occupancy_grid::OccupancyGrid>()?;
-    m.add_class::<python::occupancy_grid::OccupancyCellView>()?;
+    m.add_class::<occupancy_grid::OccupancyGrid>()?;
+    m.add_class::<occupancy_grid::OccupancyCellView>()?;
 
     Ok(())
 }

@@ -7,11 +7,11 @@ use pyo3::prelude::*;
 
 use crate::agent::RayCasters;
 use crate::character_controller::MaxLinearSpeed;
-use crate::core::{PlayerGrid, TrueGrid};
 use crate::flag::{CapturePoint, Flag, FlagCaptureCounts};
 use crate::interaction_range::{FlagDropMessage, FlagPickupMessage};
+use crate::occupancy_grid::{OccupancyGrid, OccupancyGridView};
+use crate::occupancy_grid::{PlayerGrid, TrueGrid};
 use crate::python::game_state::collect_agent_state;
-use crate::python::occupancy_grid::{OccupancyGrid, OccupancyGridView};
 use crate::scene::Wall;
 use crate::{
     agent::{Action, Agent},

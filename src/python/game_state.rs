@@ -51,6 +51,7 @@ pub struct AgentState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
 pub enum EntityType {
     Wall(),
+    Empty(),
     Flag(u32),
     CapturePoint(u32),
     Unknown(u32),

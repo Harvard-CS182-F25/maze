@@ -6,9 +6,9 @@ use std::{
     time::Duration,
 };
 
-use crate::python::{
-    game_state::GameState,
+use crate::{
     occupancy_grid::{OccupancyGrid, OccupancyGridView},
+    python::game_state::GameState,
 };
 
 #[gen_stub_pyclass]

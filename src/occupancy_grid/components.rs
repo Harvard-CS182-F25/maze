@@ -238,3 +238,40 @@ impl OccupancyGridView {
         })
     }
 }
+
+#[derive(Resource, Clone)]
+pub struct PlayerGrid(pub Arc<RwLock<Py<OccupancyGrid>>>);
+
+#[derive(Resource, Clone)]
+pub struct TrueGrid(pub Arc<RwLock<Py<OccupancyGrid>>>);
+
+#[derive(Component)]
+pub struct GridPlane<T>(pub std::marker::PhantomData<T>);
+
+#[derive(Resource)]
+pub struct GridVisualization<T> {
+    pub handle: Handle<Image>,
+    pub material: Handle<StandardMaterial>,
+    pub(super) _marker: std::marker::PhantomData<T>,
+}
+
+pub trait PyGridProvider: Resource + Clone + Send + Sync + 'static {
+    fn arc(&self) -> &Arc<RwLock<Py<OccupancyGrid>>>;
+    fn name() -> &'static str;
+}
+impl PyGridProvider for PlayerGrid {
+    fn arc(&self) -> &Arc<RwLock<Py<OccupancyGrid>>> {
+        &self.0
+    }
+    fn name() -> &'static str {
+        "player"
+    }
+}
+impl PyGridProvider for TrueGrid {
+    fn arc(&self) -> &Arc<RwLock<Py<OccupancyGrid>>> {
+        &self.0
+    }
+    fn name() -> &'static str {
+        "truth"
+    }
+}
