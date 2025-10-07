@@ -161,6 +161,17 @@ pub fn spawn_walls(
         WALL_THICKNESS * 0.5,
     );
 
+    Python::attach(|py| {
+        let grid = true_grid.0.write().unwrap();
+        let mut py_obj = grid.borrow_mut(py);
+        let width = py_obj.width as u32;
+        let height = py_obj.height as u32;
+        for index in 0..(width * height) {
+            py_obj.grid[index as usize].assignment = Some(EntityType::Empty());
+            py_obj.grid[index as usize].p_free = 1.0;
+        }
+    });
+
     for (p0, p1) in segments {
         let mut entity = commands.spawn(WallBundle::new(p0, p1, WALL_THICKNESS));
 
@@ -187,12 +198,6 @@ pub fn spawn_walls(
             let grid = true_grid.0.write().unwrap();
             let mut py_obj = grid.borrow_mut(py);
             let width = py_obj.width as u32;
-            let height = py_obj.height as u32;
-
-            for index in 0..(width * height) {
-                py_obj.grid[index as usize].assignment = Some(EntityType::Empty());
-                py_obj.grid[index as usize].p_free = 1.0;
-            }
 
             for (ix, iy) in indexes.iter().copied() {
                 py_obj.grid[(ix + iy * width) as usize].assignment = Some(EntityType::Wall());

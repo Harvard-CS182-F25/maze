@@ -13,7 +13,7 @@ use std::sync::{Arc, RwLock};
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy::window::PrimaryWindow;
+use bevy::window::WindowCreated;
 use bevy::winit::WinitWindows;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -54,7 +54,7 @@ fn generate_app(
             ..Default::default()
         }));
 
-        // app.add_systems(PostStartup, force_focus);
+        app.add_systems(Update, force_focus);
     }
 
     if config.debug {
@@ -112,13 +112,17 @@ fn run(py: Python<'_>, config: MazeConfig, policy: Py<PyAny>) -> PyResult<Option
 }
 
 fn force_focus(
-    winit_windows: NonSend<WinitWindows>,
-    q: Query<(Entity, &Window), With<PrimaryWindow>>,
+    winit_windows: Option<NonSend<WinitWindows>>,
+    mut created: MessageReader<WindowCreated>,
 ) {
-    if let Ok((entity, _window)) = q.single()
-        && let Some(win) = winit_windows.get_window(entity)
-    {
-        win.focus_window();
+    let Some(winit_windows) = winit_windows else {
+        return;
+    };
+
+    for ev in created.read() {
+        if let Some(win) = winit_windows.get_window(ev.window) {
+            win.focus_window();
+        }
     }
 }
 

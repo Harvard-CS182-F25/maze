@@ -9,12 +9,13 @@ use pyo3::prelude::*;
 use crate::{
     core::MazeConfig,
     occupancy_grid::{GridPlane, GridVisualization, OccupancyGrid, PyGridProvider},
+    python::game_state::EntityType,
     scene::WALL_HEIGHT,
 };
 
 pub fn setup_key_instructions(mut commands: Commands) {
     commands.spawn((
-        Text::new("O: Toggle Occupancy Grid | T: Toggle True Grid"),
+        Text::new("O: Toggle Computed Occupancy Grid | T: Toggle True Occupancy Grid"),
         TextFont {
             font_size: 14.0,
             ..default()
@@ -157,16 +158,12 @@ fn encode_grid_to_rgba(grid: &OccupancyGrid) -> Vec<u8> {
             let idx = y * width + x;
             let entry = grid.grid[idx];
 
-            let (r, g, b, a) = if entry.p_wall > 0.5 {
-                (0u8, 0u8, 0u8, 200u8)
-            } else if entry.p_free > 0.5 {
-                (255u8, 255u8, 255u8, 0u8)
-            } else if entry.p_flag > 0.5 {
-                (255u8, 0u8, 0u8, 200u8)
-            } else if entry.p_capture_point > 0.5 {
-                (0u8, 0u8, 255u8, 200u8)
-            } else {
-                (127u8, 127u8, 127u8, 200u8) // unknown
+            let (r, g, b, a) = match entry.assignment {
+                Some(EntityType::Wall()) => (0u8, 0u8, 0u8, 200u8),
+                Some(EntityType::Empty()) => (255u8, 255u8, 255u8, 0u8),
+                Some(EntityType::Flag(_)) => (255u8, 0u8, 0u8, 200u8),
+                Some(EntityType::CapturePoint(_)) => (0u8, 0u8, 255u8, 200u8),
+                _ => (127u8, 127u8, 127u8, 100u8),
             };
 
             let off = idx * 4;
