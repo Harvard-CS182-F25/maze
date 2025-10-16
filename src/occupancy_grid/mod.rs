@@ -22,23 +22,32 @@ impl Plugin for OccupancyGridPlugin {
             / self.config.agent.occupancy_grid_cell_size)
             .round() as usize;
 
-        let player_grid = Python::attach(|py| {
-            Py::new(
-                py,
-                OccupancyGrid::new(width, height, self.config.agent.occupancy_grid_cell_size),
-            )
-        })
-        .expect("Failed to create OccupancyGrid");
-        let true_grid = Python::attach(|py| {
-            Py::new(
-                py,
-                OccupancyGrid::new(width, height, self.config.agent.occupancy_grid_cell_size),
-            )
-        })
-        .expect("Failed to create OccupancyGrid");
+        let true_arc = {
+            let true_grid = Python::attach(|py| {
+                Py::new(
+                    py,
+                    OccupancyGrid::new(width, height, self.config.agent.occupancy_grid_cell_size),
+                )
+            })
+            .expect("Failed to create OccupancyGrid");
+            Arc::new(RwLock::new(true_grid))
+        };
+        let player_arc = if self.config.use_true_map {
+            true_arc.clone()
+        } else {
+            let player_grid = Python::attach(|py| {
+                Py::new(
+                    py,
+                    OccupancyGrid::new(width, height, self.config.agent.occupancy_grid_cell_size),
+                )
+            })
+            .expect("Failed to create OccupancyGrid");
 
-        app.insert_resource(PlayerGrid(Arc::new(RwLock::new(player_grid))));
-        app.insert_resource(TrueGrid(Arc::new(RwLock::new(true_grid))));
+            Arc::new(RwLock::new(player_grid))
+        };
+
+        app.insert_resource(PlayerGrid(player_arc));
+        app.insert_resource(TrueGrid(true_arc));
         app.insert_resource(HoverCell {
             cell: None,
             world_hit: None,

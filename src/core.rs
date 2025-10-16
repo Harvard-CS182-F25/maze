@@ -33,6 +33,8 @@ pub struct MazeConfig {
     pub debug: bool,
     #[pyo3(get, set)]
     pub headless: bool,
+    #[pyo3(get, set)]
+    pub use_true_map: bool,
 }
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
