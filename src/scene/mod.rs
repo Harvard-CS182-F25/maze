@@ -53,7 +53,11 @@ impl Plugin for ScenePlugin {
         );
         app.add_systems(
             Update,
-            (systems::update_time, systems::update_true_position),
+            (
+                systems::update_time,
+                systems::update_true_position,
+                systems::update_mapping_error,
+            ),
         );
     }
 }

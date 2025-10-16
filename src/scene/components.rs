@@ -25,6 +25,10 @@ pub struct TruePositionText;
 #[reflect(Component)]
 pub struct EstimatedPositionText;
 
+#[derive(Debug, Clone, Copy, Default, Component, Reflect)]
+#[reflect(Component)]
+pub struct MappingErrorText;
+
 #[derive(Debug, Clone, Bundle, Default)]
 pub struct WallBundle {
     pub wall: Wall,

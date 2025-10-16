@@ -7,11 +7,11 @@ use pyo3::prelude::*;
 use crate::{
     agent::{Agent, COLLISION_LAYER_AGENT},
     core::MazeConfig,
-    occupancy_grid::{LOGIT_CLAMP, TrueGrid},
+    occupancy_grid::{LOGIT_CLAMP, PlayerGrid, TrueGrid},
     python::game_state::EntityType,
     scene::{
-        COLLISION_LAYER_WALL, EstimatedPositionText, TimeText, TruePositionText, WALL_HEIGHT,
-        WALL_THICKNESS, WallBundle, WallGraphicsAssets, WallSegments,
+        COLLISION_LAYER_WALL, EstimatedPositionText, MappingErrorText, TimeText, TruePositionText,
+        WALL_HEIGHT, WALL_THICKNESS, WallBundle, WallGraphicsAssets, WallSegments,
     },
 };
 
@@ -221,6 +221,16 @@ pub fn spawn_seed_and_time(
                 TextLayout::new_with_justify(Justify::Right),
                 EstimatedPositionText,
             ));
+
+            parent.spawn((
+                Text::new("Mapping Error:"),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextLayout::new_with_justify(Justify::Right),
+                MappingErrorText,
+            ));
         });
 }
 
@@ -228,6 +238,39 @@ pub fn update_time(mut query: Query<&mut Text, With<TimeText>>, time: Res<Time>)
     for mut text in query.iter_mut() {
         text.0 = format!("Time: {:.2}s", time.elapsed_secs());
     }
+}
+
+pub fn update_mapping_error(
+    player_grid: Res<PlayerGrid>,
+    true_grid: Res<TrueGrid>,
+    mut query: Query<&mut Text, With<MappingErrorText>>,
+) {
+    Python::attach(|py| {
+        let player_grid = player_grid.0.read().unwrap();
+        let true_grid = true_grid.0.read().unwrap();
+        let player_grid = player_grid.borrow(py);
+        let true_grid = true_grid.borrow(py);
+
+        let mut error = 0;
+        let mut total = 0;
+        for (player_entry, true_entry) in player_grid.grid.iter().zip(true_grid.grid.iter()) {
+            if let Some(true_entity_type) = true_entry.assignment
+                && true_entity_type != EntityType::Flag
+                && true_entity_type != EntityType::CapturePoint
+            {
+                total += 1;
+                if player_entry.assignment != true_entry.assignment {
+                    error += 1;
+                }
+            }
+        }
+
+        let error_rate = (error as f32) / total.max(1) as f32 * 100.0;
+
+        for mut text in query.iter_mut() {
+            text.0 = format!("Mapping Error: {error:.0}/{total} [{error_rate:.1}%]");
+        }
+    })
 }
 
 pub fn update_true_position(
