@@ -6,6 +6,18 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::python::game_state::EntityType;
 
+#[derive(Resource, Default, Debug, Clone, Copy)]
+pub struct HoverCell {
+    pub cell: Option<UVec2>, // (col, row)
+    pub world_hit: Option<Vec3>,
+}
+
+#[derive(Component)]
+pub struct HoverBox; // the floating UI container
+
+#[derive(Component)]
+pub struct HoverBoxText; // the text inside it
+
 #[derive(Debug, Clone, Copy, PartialEq, Reflect)]
 pub struct OccupancyGridEntry {
     pub assignment: Option<EntityType>,
@@ -301,7 +313,7 @@ impl PyGridProvider for PlayerGrid {
         &self.0
     }
     fn name() -> &'static str {
-        "player"
+        "PlayerGrid"
     }
 }
 impl PyGridProvider for TrueGrid {
@@ -309,6 +321,6 @@ impl PyGridProvider for TrueGrid {
         &self.0
     }
     fn name() -> &'static str {
-        "truth"
+        "TruthGrid"
     }
 }

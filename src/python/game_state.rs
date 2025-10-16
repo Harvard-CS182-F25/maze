@@ -59,6 +59,19 @@ pub enum EntityType {
     Unknown,
 }
 
+impl std::fmt::Display for EntityType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            EntityType::Wall => "Wall",
+            EntityType::Empty => "Empty",
+            EntityType::Flag => "Flag",
+            EntityType::CapturePoint => "CapturePoint",
+            EntityType::Unknown => "Unknown",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 #[gen_stub_pyclass]
 #[pyclass(name = "HitInfo", frozen, str)]
 #[derive(Clone, Debug, PartialEq)]

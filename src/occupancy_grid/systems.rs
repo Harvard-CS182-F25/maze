@@ -3,12 +3,16 @@ use bevy::{
     image::ImageSampler,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
+    window::PrimaryWindow,
 };
 use pyo3::prelude::*;
 
 use crate::{
     core::MazeConfig,
-    occupancy_grid::{GridPlane, GridVisualization, OccupancyGrid, PyGridProvider},
+    occupancy_grid::{
+        GridPlane, GridVisualization, HoverBox, HoverBoxText, HoverCell, OccupancyGrid,
+        PyGridProvider,
+    },
     python::game_state::EntityType,
     scene::WALL_HEIGHT,
 };
@@ -194,4 +198,227 @@ fn encode_grid_to_rgba(grid: &OccupancyGrid) -> Vec<u8> {
     }
 
     buffer
+}
+
+pub fn cursor_to_grid_cell<T: PyGridProvider>(
+    // cursor
+    windows: Query<&Window, With<PrimaryWindow>>,
+    // camera doing the looking
+    cams: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
+    // your grid plane transform
+    plane_q: Query<&GlobalTransform, With<GridPlane<T>>>,
+    // your sizes
+    config: Res<MazeConfig>,
+    mut hover: ResMut<HoverCell>,
+) {
+    // let window = if let Ok(w) = windows.single() {
+    //     w
+    // } else {
+    //     return;
+    // };
+    let Ok(window) = windows.single() else { return };
+    let Ok((camera, cam_transform)) = cams.single() else {
+        return;
+    };
+    let Ok(plane_gt) = plane_q.single() else {
+        return;
+    };
+
+    let Some(cursor) = window.cursor_position() else {
+        *hover = HoverCell::default();
+        return;
+    };
+
+    // Build a world-space ray from the cursor
+    let Ok(ray) = camera.viewport_to_world(cam_transform, cursor) else {
+        return;
+    };
+
+    let ro = ray.origin;
+    let rd = ray.direction;
+
+    // Intersect ray with the plane the grid image sits on.
+    // This assumes the plane is an XZ "floor", so its normal is +Y in local space.
+    let plane_point = plane_gt.translation();
+    let plane_normal = plane_gt.up().into(); // world-space normal (+Y rotated by plane)
+
+    let denom = rd.dot(plane_normal);
+    if denom.abs() < 1e-6 {
+        *hover = HoverCell::default();
+        return; // ray is parallel to plane
+    }
+    let t = (plane_point - ro).dot(plane_normal) / denom;
+    if t < 0.0 {
+        *hover = HoverCell::default();
+        return; // plane behind camera
+    }
+    let hit = ro + t * rd;
+
+    // Convert world hit → plane-local so we can use X/Z cleanly
+    let inv = plane_gt.to_matrix().inverse();
+    let local = inv.transform_point3(hit); // local.y should be ~0
+
+    // Map local.x/local.z to [0, width)×[0, height)
+    let world_w = config.maze_generation.width;
+    let world_h = config.maze_generation.height;
+    let cell = config.agent.occupancy_grid_cell_size;
+    let grid_w = (world_w / cell).round() as u32;
+    let grid_h = (world_h / cell).round() as u32;
+
+    // Plane is centered at (0, WALL_HEIGHT, 0) with extents ±world_w/2, ±world_h/2
+    let u = (local.x + world_w * 0.5) / cell; // column (x)
+    let v = (local.z + world_h * 0.5) / cell; // row    (z)
+
+    let col = u.floor() as i32;
+    let row = v.floor() as i32;
+
+    // Inside?
+    if col < 0 || row < 0 || col as u32 >= grid_w || row as u32 >= grid_h {
+        *hover = HoverCell::default();
+        return;
+    }
+
+    // If your image ends up vertically flipped, swap to: let row = (grid_h as i32 - 1) - row;
+    hover.cell = Some(UVec2::new(col as u32, row as u32));
+    hover.world_hit = Some(hit);
+}
+
+pub fn setup_hover_box(mut commands: Commands) {
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                display: Display::None,
+                left: Val::Px(0.0),
+                top: Val::Px(0.0),
+                padding: UiRect::all(Val::Px(8.0)),
+                row_gap: Val::Px(4.0),
+                ..default()
+            },
+            BorderRadius::all(Val::Px(4.0)),
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.75)),
+            GlobalZIndex(10),
+            HoverBox,
+            Name::new("HoverBox"),
+        ))
+        .with_children(|p| {
+            p.spawn((
+                Text::new(""),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextLayout::new_with_justify(Justify::Left),
+                HoverBoxText,
+            ));
+        });
+}
+
+pub fn update_hover_box<T: PyGridProvider>(
+    windows: Query<&Window, With<PrimaryWindow>>,
+    plane_vis: Query<&Visibility, With<GridPlane<T>>>,
+    grid: Res<T>,
+    mut q_box: Query<(&mut Node, &mut BackgroundColor), With<HoverBox>>,
+    mut q_text: Query<&mut Text, With<HoverBoxText>>,
+    hover: Res<HoverCell>,
+) {
+    let Ok(window) = windows.single() else {
+        info!("No window for tooltip");
+        return;
+    };
+    let Ok(vis) = plane_vis.single() else {
+        info!("No plane vis");
+        return;
+    };
+    let Ok((mut node, mut _bg)) = q_box.single_mut() else {
+        info!("No tooltip box");
+        return;
+    };
+    let Ok(mut text) = q_text.single_mut() else {
+        info!("No tooltip text");
+        return;
+    };
+
+    let (Some(cell), Some(world)) = (hover.cell, hover.world_hit) else {
+        node.display = Display::None;
+        return;
+    };
+
+    if vis == Visibility::Hidden {
+        node.display = Display::None;
+        return;
+    }
+
+    // place near cursor with a small offset; clamp to window bounds
+    let Some(cursor) = window.cursor_position() else {
+        node.display = Display::None;
+        return;
+    };
+
+    let (logits, probabilities, assignment) = Python::attach(|py| {
+        let py_obj = grid.arc().read().unwrap().clone_ref(py);
+        let grid_ref = py_obj.borrow(py);
+        let idx = (cell.y * grid_ref.width as u32 + cell.x) as usize;
+        if idx >= grid_ref.grid.len() {
+            // return default-shaped values: logits tuple, probabilities tuple, no assignment
+            return ((-1.0, -1.0, -1.0, -1.0), (-1.0, -1.0, -1.0, -1.0), None);
+        }
+        let entry = &grid_ref.grid[idx];
+        let logits = (
+            entry.logit_free,
+            entry.logit_wall,
+            entry.logit_flag,
+            entry.logit_capture_point,
+        );
+        let probs = entry.probabilities();
+        let assign = entry.assignment;
+
+        (logits, probs, assign)
+    });
+
+    // tweak these if you change box size
+    const OFFSET: Vec2 = Vec2::new(0.0, 0.0);
+    const BOX_W: f32 = 320.0; // assumed width for clamping
+    const BOX_H: f32 = 120.0; // assumed height for clamping
+
+    let mut x = cursor.x + OFFSET.x;
+    let mut y = cursor.y + OFFSET.y;
+
+    if x + BOX_W > window.width() - 4.0 {
+        x = (window.width() - 4.0) - BOX_W;
+    }
+    if y + BOX_H > window.height() - 4.0 {
+        y = (window.height() - 4.0) - BOX_H;
+    }
+
+    node.left = Val::Px(x.max(4.0));
+    node.top = Val::Px(y.max(4.0));
+    node.display = Display::Grid;
+
+    text.0 = format!(
+        "{}\n\
+         Cell:       ({},{})\n\
+         World:      ({:.2},{:.2})\n\
+         Free:       {:.2} ({:.2})\n\
+         Wall:       {:.2} ({:.2})\n\
+         Flag:       {:.2} ({:.2})\n\
+         CP:         {:.2} ({:.2})\n\
+         Assignment: {}     ",
+        T::name(),
+        cell.x,
+        cell.y,
+        world.x,
+        world.z,
+        probabilities.0,
+        logits.0,
+        probabilities.1,
+        logits.1,
+        probabilities.2,
+        logits.2,
+        probabilities.3,
+        logits.3,
+        assignment
+            .map(|e| format!("{}", e))
+            .unwrap_or("None".to_string())
+    );
 }

@@ -39,11 +39,16 @@ impl Plugin for OccupancyGridPlugin {
 
         app.insert_resource(PlayerGrid(Arc::new(RwLock::new(player_grid))));
         app.insert_resource(TrueGrid(Arc::new(RwLock::new(true_grid))));
+        app.insert_resource(HoverCell {
+            cell: None,
+            world_hit: None,
+        });
 
         app.add_systems(
             Startup,
             (
                 systems::setup_key_instructions,
+                systems::setup_hover_box,
                 systems::spawn_grid_texture::<PlayerGrid>,
                 systems::spawn_grid_texture::<TrueGrid>,
             )
@@ -56,6 +61,8 @@ impl Plugin for OccupancyGridPlugin {
                 systems::toggle_grid::<PlayerGrid>.run_if(input_just_pressed(KeyCode::KeyO)),
                 systems::update_grid_texture::<TrueGrid>,
                 systems::toggle_grid::<TrueGrid>.run_if(input_just_pressed(KeyCode::KeyT)),
+                systems::cursor_to_grid_cell::<PlayerGrid>,
+                systems::update_hover_box::<PlayerGrid>,
             )
                 .run_if(|config: Res<MazeConfig>| !config.headless),
         );
