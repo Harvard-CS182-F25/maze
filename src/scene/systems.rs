@@ -9,7 +9,9 @@ use crate::{
     core::MazeConfig,
     occupancy_grid::TrueGrid,
     python::game_state::EntityType,
-    scene::{COLLISION_LAYER_WALL, WALL_HEIGHT, WALL_THICKNESS, WallBundle, WallGraphicsAssets},
+    scene::{
+        COLLISION_LAYER_WALL, TimeText, WALL_HEIGHT, WALL_THICKNESS, WallBundle, WallGraphicsAssets,
+    },
 };
 
 pub fn setup_scene(
@@ -178,6 +180,67 @@ fn overlapping_indexes(
     indexes
 }
 
+pub fn spawn_seed_and_time(
+    mut commands: Commands,
+    mut config: ResMut<MazeConfig>,
+    time: Res<Time>,
+) {
+    let seed = if let Some(seed) = config.maze_generation.seed {
+        seed
+    } else {
+        let seed = rand::random::<u16>().into();
+        config.maze_generation.seed = Some(seed);
+        seed
+    };
+
+    info!("Using maze generation seed: {}", seed);
+
+    if config.headless {
+        return;
+    }
+
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                display: Display::Grid,
+                top: Val::Px(5.0),
+                left: Val::Px(5.0),
+                padding: Val::Px(2.5).into(),
+                justify_items: JustifyItems::Start,
+                align_items: AlignItems::Start,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new(format!("Time: {:.2}s", time.elapsed_secs())),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextLayout::new_with_justify(Justify::Right),
+                TimeText,
+            ));
+
+            parent.spawn((
+                Text::new(format! {"Seed: {}", seed}),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextLayout::new_with_justify(Justify::Right),
+            ));
+        });
+}
+
+pub fn update_time(mut query: Query<&mut Text, With<TimeText>>, time: Res<Time>) {
+    for mut text in query.iter_mut() {
+        text.0 = format!("Time: {:.2}s", time.elapsed_secs());
+    }
+}
+
 pub fn spawn_walls(
     mut commands: Commands,
     mut meshes: Option<ResMut<Assets<Mesh>>>,
@@ -185,11 +248,15 @@ pub fn spawn_walls(
     graphics: Option<Res<WallGraphicsAssets>>,
     config: Res<MazeConfig>,
 ) {
-    let mut generator = RbGenerator::new(config.maze_generation.seed.map(|s| {
+    let seed = config
+        .maze_generation
+        .seed
+        .expect("Should have generated a seed before the map generation");
+    let mut generator = RbGenerator::new({
         let mut arr = [0u8; 32];
-        arr[..4].copy_from_slice(&s.to_le_bytes());
-        arr
-    }));
+        arr[..4].copy_from_slice(&seed.to_le_bytes());
+        Some(arr)
+    });
 
     let maze = generator
         .generate(

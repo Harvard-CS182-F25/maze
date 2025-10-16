@@ -10,6 +10,10 @@ use crate::{
 #[reflect(Component)]
 pub struct Wall;
 
+#[derive(Debug, Clone, Copy, Default, Component, Reflect)]
+#[reflect(Component)]
+pub struct TimeText;
+
 #[derive(Debug, Clone, Bundle, Default)]
 pub struct WallBundle {
     pub wall: Wall,

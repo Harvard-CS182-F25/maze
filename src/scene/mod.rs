@@ -46,8 +46,9 @@ impl Plugin for ScenePlugin {
             ..Default::default()
         });
 
-        app.add_systems(PreStartup, init_wall_assets);
+        app.add_systems(PreStartup, (init_wall_assets, systems::spawn_seed_and_time));
         app.add_systems(Startup, (systems::setup_scene, systems::spawn_walls));
+        app.add_systems(Update, systems::update_time);
     }
 }
 

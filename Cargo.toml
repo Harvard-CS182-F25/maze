@@ -62,7 +62,7 @@ bevy = { version = "0.17.2", default-features = false, features = [
 pyo3 = { version = "0.26", features = ["serde"] }
 pyo3-stub-gen = "0.14.0"
 
-avian3d = { git = "https://github.com/Jondolf/avian", branch = "main", features = [
+avian3d = { version = "0.4", features = [
     "bevy_diagnostic",
     "diagnostic_ui",
     "debug-plugin",
