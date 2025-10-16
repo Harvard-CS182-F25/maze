@@ -202,7 +202,7 @@ pub fn collect_agent_state(
         kids.iter().find_map(|child| {
             let (_, f, _) = kinds.get(child).ok()?;
             f.as_ref()?;
-            Some(child.index())
+            Some(child)
         })
     });
 
@@ -215,7 +215,10 @@ pub fn collect_agent_state(
                 raycaster.direction,
                 raycaster.max_distance,
                 raycaster.solid,
-                &raycaster.query_filter,
+                &raycaster
+                    .query_filter
+                    .clone()
+                    .with_excluded_entities(flag.map(|e| vec![e]).unwrap_or(vec![])),
             );
 
             let entity_type = hit
@@ -247,7 +250,7 @@ pub fn collect_agent_state(
         id: entity.index(),
         position: agent_transform.translation.xz().into(),
         raycasts,
-        flag,
+        flag: flag.map(|f| f.index()),
         max_speed: max_speed.0,
     };
 

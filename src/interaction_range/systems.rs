@@ -1,3 +1,4 @@
+use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use crate::agent::Agent;
@@ -99,6 +100,10 @@ pub fn handle_flag_pickups(
 
             if distance < *radius && flag.status == FlagStatus::Dropped {
                 commands.entity(agent_entity).add_child(flag_entity);
+                commands
+                    .entity(flag_entity)
+                    .remove::<RigidBody>()
+                    .remove::<Collider>();
                 flag.status = FlagStatus::PickedUp;
                 flag_transform.translation = Vec3::new(0.0, 0.5, 0.0); // lift flag above agent
                 break;
@@ -139,6 +144,9 @@ pub fn handle_flag_drop(
 
         if let Ok((flag_entity, mut flag, mut flag_transform)) = flags.get_mut(flag_entity) {
             commands.entity(agent_entity).remove_child(flag_entity);
+            commands
+                .entity(flag_entity)
+                .insert((RigidBody::Kinematic, Collider::cylinder(0.5, 3.0)));
             flag.status = FlagStatus::Dropped;
             flag_transform.translation = agent_transform.translation
         }

@@ -14,6 +14,8 @@ use crate::core::{MazeConfig, StartupSets};
 
 pub const FLAG_INTERACTION_RADIUS: f32 = 3.0;
 pub const CAPTURE_POINT_INTERACTION_RADIUS: f32 = 3.0;
+pub const COLLISION_LAYER_FLAG: u32 = 1 << 2;
+pub const COLLISION_LAYER_CAPTURE_POINT: u32 = 1 << 3;
 
 #[gen_stub_pyclass]
 #[pyclass(name = "FlagConfig")]
