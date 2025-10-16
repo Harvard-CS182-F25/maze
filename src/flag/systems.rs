@@ -23,7 +23,7 @@ pub fn spawn_flags(
         if let Some(flag_graphics) = &flag_graphics {
             entity.insert((
                 Mesh3d(flag_graphics.mesh.clone()),
-                MeshMaterial3d(flag_graphics.blue_material.clone()),
+                MeshMaterial3d(flag_graphics.material.clone()),
             ));
         }
     }
@@ -46,7 +46,7 @@ pub fn spawn_capture_points(
         if let Some(capture_point_graphics) = &capture_point_graphics {
             entity.insert((
                 Mesh3d(capture_point_graphics.mesh.clone()),
-                MeshMaterial3d(capture_point_graphics.blue_material.clone()),
+                MeshMaterial3d(capture_point_graphics.material.clone()),
             ));
         }
     }
