@@ -27,8 +27,7 @@ pub struct RayCasters(pub Vec<RayCaster>);
 
 impl RayCasters {
     pub fn new(num_rays: u32, max_distance: f32) -> Self {
-        let thetas = (0..num_rays)
-            .map(|i| (2 * i + 1) as f32 * (std::f32::consts::TAU / (2 * num_rays) as f32));
+        let thetas = (0..num_rays).map(|i| i as f32 * (std::f32::consts::TAU / num_rays as f32));
 
         RayCasters(
             thetas
