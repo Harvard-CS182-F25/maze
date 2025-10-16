@@ -51,7 +51,10 @@ impl Plugin for ScenePlugin {
             Startup,
             (systems::setup_scene, systems::spawn_walls).in_set(StartupSets::Walls),
         );
-        app.add_systems(Update, systems::update_time);
+        app.add_systems(
+            Update,
+            (systems::update_time, systems::update_true_position),
+        );
     }
 }
 

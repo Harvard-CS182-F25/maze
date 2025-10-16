@@ -17,6 +17,14 @@ pub struct WallSegments(pub Vec<(Vec2, Vec2)>);
 #[reflect(Component)]
 pub struct TimeText;
 
+#[derive(Debug, Clone, Copy, Default, Component, Reflect)]
+#[reflect(Component)]
+pub struct TruePositionText;
+
+#[derive(Debug, Clone, Copy, Default, Component, Reflect)]
+#[reflect(Component)]
+pub struct EstimatedPositionText;
+
 #[derive(Debug, Clone, Bundle, Default)]
 pub struct WallBundle {
     pub wall: Wall,

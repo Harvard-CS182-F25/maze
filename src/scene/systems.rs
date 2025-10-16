@@ -5,13 +5,13 @@ use maze_generator::recursive_backtracking::RbGenerator;
 use pyo3::prelude::*;
 
 use crate::{
-    agent::COLLISION_LAYER_AGENT,
+    agent::{Agent, COLLISION_LAYER_AGENT},
     core::MazeConfig,
     occupancy_grid::{LOGIT_CLAMP, TrueGrid},
     python::game_state::EntityType,
     scene::{
-        COLLISION_LAYER_WALL, TimeText, WALL_HEIGHT, WALL_THICKNESS, WallBundle,
-        WallGraphicsAssets, WallSegments,
+        COLLISION_LAYER_WALL, EstimatedPositionText, TimeText, TruePositionText, WALL_HEIGHT,
+        WALL_THICKNESS, WallBundle, WallGraphicsAssets, WallSegments,
     },
 };
 
@@ -201,12 +201,48 @@ pub fn spawn_seed_and_time(
                 },
                 TextLayout::new_with_justify(Justify::Right),
             ));
+
+            parent.spawn((
+                Text::new("True Agent Position:"),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextLayout::new_with_justify(Justify::Right),
+                TruePositionText,
+            ));
+
+            parent.spawn((
+                Text::new("Estimated Agent Position: ()"),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextLayout::new_with_justify(Justify::Right),
+                EstimatedPositionText,
+            ));
         });
 }
 
 pub fn update_time(mut query: Query<&mut Text, With<TimeText>>, time: Res<Time>) {
     for mut text in query.iter_mut() {
         text.0 = format!("Time: {:.2}s", time.elapsed_secs());
+    }
+}
+
+pub fn update_true_position(
+    mut query: Query<&mut Text, With<TruePositionText>>,
+    agent_transform: Query<&Transform, With<Agent>>,
+) {
+    let Ok(agent_transform) = agent_transform.single() else {
+        return;
+    };
+
+    for mut text in query.iter_mut() {
+        text.0 = format!(
+            "True Agent Position: ({:.2}, {:.2})",
+            agent_transform.translation.x, agent_transform.translation.z
+        );
     }
 }
 

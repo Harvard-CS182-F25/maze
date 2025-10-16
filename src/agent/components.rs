@@ -16,6 +16,11 @@ use crate::{
 #[reflect(Component)]
 pub struct Agent;
 
+#[derive(Debug, Clone, Copy, PartialEq, Component, Reflect, Derivative)]
+#[derivative(Default)]
+#[reflect(Component)]
+pub struct GhostAgent;
+
 #[derive(Debug, Clone, Default, Component, Reflect)]
 #[reflect(Component)]
 pub struct RayCasters(pub Vec<RayCaster>);
@@ -43,6 +48,15 @@ impl RayCasters {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Reflect)]
+#[gen_stub_pyclass_complex_enum]
+#[pyclass(name = "Action")]
+pub enum Action {
+    Move { id: u32, velocity: (f32, f32) },
+    PickupFlag { id: u32 },
+    DropFlag { id: u32 },
+}
+
 #[derive(Debug, Clone, Bundle)]
 pub struct AgentBundle {
     pub name: Name,
@@ -54,15 +68,6 @@ pub struct AgentBundle {
     pub collision_layer: CollisionLayers,
     pub max_speed: MaxLinearSpeed,
     pub raycasters: RayCasters,
-}
-
-#[derive(Debug, Clone, PartialEq, Reflect)]
-#[gen_stub_pyclass_complex_enum]
-#[pyclass(name = "Action")]
-pub enum Action {
-    Move { id: u32, velocity: (f32, f32) },
-    PickupFlag { id: u32 },
-    DropFlag { id: u32 },
 }
 
 impl AgentBundle {
@@ -95,6 +100,33 @@ impl Default for AgentBundle {
             character_controller: CharacterControllerBundle::new(Collider::cuboid(1.0, 1.0, 1.0)),
             collision_layer,
             raycasters: RayCasters::new(NUM_AGENT_RAYS, AGENT_RAYCAST_MAX_DISTANCE),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Bundle)]
+pub struct GhostAgentBundle {
+    pub name: Name,
+    pub agent: GhostAgent,
+    pub position: Transform,
+}
+
+impl GhostAgentBundle {
+    pub fn new(name: &str, position: Vec3) -> Self {
+        Self {
+            name: Name::new(name.to_string()),
+            agent: GhostAgent,
+            position: Transform::from_translation(position),
+        }
+    }
+}
+
+impl Default for GhostAgentBundle {
+    fn default() -> Self {
+        Self {
+            name: Name::new("GhostAgent"),
+            agent: GhostAgent,
+            position: Transform::default(),
         }
     }
 }

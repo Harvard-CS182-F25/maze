@@ -5,14 +5,14 @@ use bevy::prelude::*;
 use crossbeam_channel::{Receiver, Sender, TrySendError};
 use pyo3::prelude::*;
 
-use crate::agent::RayCasters;
+use crate::agent::{GhostAgent, RayCasters};
 use crate::character_controller::MaxLinearSpeed;
 use crate::flag::{CapturePoint, Flag, FlagCaptureCounts};
 use crate::interaction_range::{FlagDropMessage, FlagPickupMessage};
 use crate::occupancy_grid::{OccupancyGrid, OccupancyGridView};
 use crate::occupancy_grid::{PlayerGrid, TrueGrid};
 use crate::python::game_state::collect_agent_state;
-use crate::scene::Wall;
+use crate::scene::{EstimatedPositionText, Wall};
 use crate::{
     agent::{Action, Agent},
     character_controller::MovementMessage,
@@ -29,6 +29,7 @@ struct Bridge {
 struct PolicyBridge {
     pub tx_state: Sender<(GameState, Arc<RwLock<Py<OccupancyGrid>>>)>,
     pub rx_action: Receiver<Action>,
+    pub rx_position: Receiver<(f32, f32)>,
 }
 
 #[derive(Clone)]
@@ -73,7 +74,12 @@ impl Plugin for PythonPolicyBridgePlugin {
 
         app.add_systems(
             Update,
-            (send_game_states, apply_actions, on_test_harness_stop),
+            (
+                send_game_states,
+                apply_actions,
+                update_estimated_position_text,
+                on_test_harness_stop,
+            ),
         );
 
         app.add_systems(Last, shutdown_workers_on_exit);
@@ -85,22 +91,30 @@ impl PolicyBridge {
         let (tx_state, rx_state) =
             crossbeam_channel::bounded::<(GameState, Arc<RwLock<Py<OccupancyGrid>>>)>(60);
         let (tx_action, rx_action) = crossbeam_channel::bounded::<Action>(60);
+        let (tx_position, rx_position) = crossbeam_channel::bounded::<(f32, f32)>(60);
 
         std::thread::spawn(move || {
             while let Ok((state, grid)) = rx_state.recv() {
-                let action = Python::attach(|py| -> PyResult<Action> {
+                let action_and_position = Python::attach(|py| -> PyResult<(Action, (f32, f32))> {
                     let state = Py::new(py, state)?;
                     let grid = Py::new(py, OccupancyGridView { inner: grid })?;
                     let action: Action = policy
                         .call_method(py, "get_action", (state, grid), None)?
                         .extract(py)?;
-                    Ok(action)
+
+                    let position: (f32, f32) =
+                        policy.call_method(py, "position", (), None)?.extract(py)?;
+
+                    Ok((action, position))
                 });
 
-                match action {
-                    Ok(action) => {
+                match action_and_position {
+                    Ok((action, position)) => {
                         if let Err(TrySendError::Disconnected(_)) = tx_action.try_send(action) {
                             break; // main thread has exited
+                        }
+                        if let Err(TrySendError::Disconnected(_)) = tx_position.try_send(position) {
+                            break;
                         }
                     }
                     Err(e) => {
@@ -114,6 +128,7 @@ impl PolicyBridge {
         Ok(PolicyBridge {
             tx_state,
             rx_action,
+            rx_position,
         })
     }
 }
@@ -232,6 +247,42 @@ fn apply_actions(
             drop_event_writer.write(FlagDropMessage { agent_id: id });
         }
     }
+}
+
+fn update_estimated_position_text(
+    bridge: Option<Res<Bridge>>,
+    agent_transform: Query<&Transform, (With<Agent>, Without<GhostAgent>)>,
+    mut ghost_agent_transform: Query<&mut Transform, (With<GhostAgent>, Without<Agent>)>,
+    mut query: Query<&mut Text, With<EstimatedPositionText>>,
+) {
+    let Some(bridge) = bridge else {
+        return;
+    };
+    let Some(agent_transform) = agent_transform.single().ok() else {
+        return;
+    };
+    let Some(mut ghost_transform) = ghost_agent_transform.single_mut().ok() else {
+        return;
+    };
+    let mut query = query.iter_mut();
+    let Some(mut text) = query.next() else {
+        return;
+    };
+
+    let mut latest: Option<(f32, f32)> = None;
+    while let Ok(position) = bridge.agent_bridge.rx_position.try_recv() {
+        latest = Some(position);
+    }
+    let Some((x, y)) = latest else {
+        return;
+    };
+
+    let error = ((agent_transform.translation.x - x).powi(2)
+        + (agent_transform.translation.z - y).powi(2))
+    .sqrt();
+
+    text.0 = format!("Estimated Agent Position: ({x:.2}, {y:.2}) [{error:.2}]");
+    ghost_transform.translation = Vec3::new(x, 0.0, y);
 }
 
 fn on_test_harness_stop(bridge: Option<Res<Bridge>>, mut exit: MessageWriter<AppExit>) {

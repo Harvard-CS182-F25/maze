@@ -4,6 +4,7 @@ use bevy::prelude::*;
 pub struct AgentGraphicsAssets {
     pub mesh: Handle<Mesh>,
     pub material: Handle<StandardMaterial>,
+    pub ghost_material: Handle<StandardMaterial>,
 }
 
 impl FromWorld for AgentGraphicsAssets {
@@ -13,7 +14,13 @@ impl FromWorld for AgentGraphicsAssets {
 
         let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
         let material: Handle<StandardMaterial> = materials.add(Color::srgb(1.0, 0.0, 0.0));
+        let ghost_material: Handle<StandardMaterial> =
+            materials.add(Color::srgba(1.0, 0.0, 0.0, 0.5));
 
-        Self { mesh, material }
+        Self {
+            mesh,
+            material,
+            ghost_material,
+        }
     }
 }

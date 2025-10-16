@@ -4,7 +4,7 @@ use rand::SeedableRng;
 use rand::seq::IndexedRandom;
 use rand_chacha::ChaCha20Rng;
 
-use crate::agent::AGENT_RAYCAST_MAX_DISTANCE;
+use crate::agent::{AGENT_RAYCAST_MAX_DISTANCE, GhostAgentBundle};
 use crate::core::MazeConfig;
 use crate::occupancy_grid::TrueGrid;
 use crate::python::game_state::EntityType;
@@ -59,19 +59,33 @@ pub fn spawn_agents(
         free_positions.choose(&mut rng).copied().unwrap()
     });
 
-    let mut entity = commands.spawn(AgentBundle::new(
-        &config.agent.name,
-        Vec3::new(position.0, 0.0, position.1),
-        config.agent.speed,
-        AGENT_RAYCAST_MAX_DISTANCE,
-    ));
-
     info!("Spawning agent at position: {:?}", position);
 
+    let entity = commands
+        .spawn(AgentBundle::new(
+            &config.agent.name,
+            Vec3::new(position.0, 0.0, position.1),
+            config.agent.speed,
+            AGENT_RAYCAST_MAX_DISTANCE,
+        ))
+        .id();
+
+    let ghost_entity = commands
+        .spawn(GhostAgentBundle::new(
+            &format!("{}-ghost", &config.agent.name),
+            Vec3::new(position.0, 0.0, position.1),
+        ))
+        .id();
+
     if let Some(graphics) = graphics {
-        entity.insert((
+        commands.entity(entity).insert((
             Mesh3d(graphics.mesh.clone()),
             MeshMaterial3d(graphics.material.clone()),
+        ));
+
+        commands.entity(ghost_entity).insert((
+            Mesh3d(graphics.mesh.clone()),
+            MeshMaterial3d(graphics.ghost_material.clone()),
         ));
     }
 }
