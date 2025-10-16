@@ -52,9 +52,19 @@ pub fn setup_key_instructions(mut commands: Commands) {
         });
 }
 
-pub fn toggle_grid<T: PyGridProvider>(mut query: Query<&mut Visibility, With<GridPlane<T>>>) {
-    for mut vis in query.iter_mut() {
+#[allow(clippy::type_complexity)]
+pub fn toggle_grid<TOn: PyGridProvider, TOff: PyGridProvider>(
+    mut vis_on: Query<&mut Visibility, (With<GridPlane<TOn>>, Without<GridPlane<TOff>>)>,
+    mut vis_off: Query<&mut Visibility, (With<GridPlane<TOff>>, Without<GridPlane<TOn>>)>,
+) {
+    for mut vis in vis_on.iter_mut() {
         vis.toggle_inherited_hidden();
+
+        if *vis != Visibility::Hidden {
+            for mut vis2 in vis_off.iter_mut() {
+                *vis2 = Visibility::Hidden;
+            }
+        }
     }
 }
 
@@ -183,9 +193,9 @@ fn encode_grid_to_rgba(grid: &OccupancyGrid) -> Vec<u8> {
 
             let (r, g, b, a) = match entry.assignment {
                 Some(EntityType::Wall) => (0u8, 0u8, 0u8, 200u8),
-                Some(EntityType::Empty) => (255u8, 255u8, 255u8, 0u8),
-                Some(EntityType::Flag) => (255u8, 0u8, 0u8, 200u8),
-                Some(EntityType::CapturePoint) => (0u8, 0u8, 255u8, 200u8),
+                Some(EntityType::Empty) => (0u8, 0u8, 0u8, 0u8),
+                Some(EntityType::Flag) => (219u8, 112u8, 147u8, 200u8),
+                Some(EntityType::CapturePoint) => (199u8, 21u8, 133u8, 200u8),
                 _ => (127u8, 127u8, 127u8, 100u8),
             };
 
@@ -283,7 +293,7 @@ pub fn cursor_to_grid_cell<T: PyGridProvider>(
     hover.world_hit = Some(hit);
 }
 
-pub fn setup_hover_box(mut commands: Commands) {
+pub fn setup_hover_box<T: 'static + Resource>(mut commands: Commands) {
     commands
         .spawn((
             Node {
@@ -298,7 +308,9 @@ pub fn setup_hover_box(mut commands: Commands) {
             BorderRadius::all(Val::Px(4.0)),
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.75)),
             GlobalZIndex(10),
-            HoverBox,
+            HoverBox {
+                _marker: std::marker::PhantomData::<T>,
+            },
             Name::new("HoverBox"),
         ))
         .with_children(|p| {
@@ -318,8 +330,8 @@ pub fn update_hover_box<T: PyGridProvider>(
     windows: Query<&Window, With<PrimaryWindow>>,
     plane_vis: Query<&Visibility, With<GridPlane<T>>>,
     grid: Res<T>,
-    mut q_box: Query<(&mut Node, &mut BackgroundColor), With<HoverBox>>,
-    mut q_text: Query<&mut Text, With<HoverBoxText>>,
+    mut q_box: Query<(Entity, &mut Node, &mut BackgroundColor), With<HoverBox<T>>>,
+    mut q_text: Query<(&mut Text, &ChildOf), With<HoverBoxText>>,
     hover: Res<HoverCell>,
 ) {
     let Ok(window) = windows.single() else {
@@ -330,13 +342,27 @@ pub fn update_hover_box<T: PyGridProvider>(
         info!("No plane vis");
         return;
     };
-    let Ok((mut node, mut _bg)) = q_box.single_mut() else {
+    let Ok((box_entity, mut node, mut _bg)) = q_box.single_mut() else {
         info!("No tooltip box");
         return;
     };
-    let Ok(mut text) = q_text.single_mut() else {
-        info!("No tooltip text");
-        return;
+
+    let mut text = {
+        let mut found: Option<Mut<Text>> = None;
+        for (t, parent) in &mut q_text {
+            if parent.parent() == box_entity {
+                found = Some(t);
+                break;
+            }
+        }
+        match found {
+            Some(t) => t,
+            None => {
+                info!("No tooltip text under the hover box");
+                node.display = Display::None;
+                return;
+            }
+        }
     };
 
     let (Some(cell), Some(world)) = (hover.cell, hover.world_hit) else {
@@ -399,16 +425,19 @@ pub fn update_hover_box<T: PyGridProvider>(
         "{}\n\
          Cell:       ({},{})\n\
          World:      ({:.2},{:.2})\n\
+         Assignment: {}\n\
          Free:       {:.2} ({:.2})\n\
          Wall:       {:.2} ({:.2})\n\
          Flag:       {:.2} ({:.2})\n\
-         CP:         {:.2} ({:.2})\n\
-         Assignment: {}     ",
+         CP:         {:.2} ({:.2})",
         T::name(),
         cell.x,
         cell.y,
         world.x,
         world.z,
+        assignment
+            .map(|e| format!("{}", e))
+            .unwrap_or("None".to_string()),
         probabilities.0,
         logits.0,
         probabilities.1,
@@ -417,8 +446,5 @@ pub fn update_hover_box<T: PyGridProvider>(
         logits.2,
         probabilities.3,
         logits.3,
-        assignment
-            .map(|e| format!("{}", e))
-            .unwrap_or("None".to_string())
     );
 }

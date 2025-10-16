@@ -35,6 +35,13 @@ pub struct MazeConfig {
     pub headless: bool,
 }
 
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum StartupSets {
+    Walls,
+    FlagsAndCapturePoints,
+    Agents,
+}
+
 #[pymethods]
 impl MazeConfig {
     fn __repr__(&self) -> PyResult<String> {
@@ -69,5 +76,15 @@ impl Plugin for MazePlugin {
                 config: self.config.clone(),
             },
         ));
+
+        app.configure_sets(
+            Startup,
+            (
+                StartupSets::Walls,
+                StartupSets::FlagsAndCapturePoints,
+                StartupSets::Agents,
+            )
+                .chain(),
+        );
     }
 }

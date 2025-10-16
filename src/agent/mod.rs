@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 pub use components::*;
 
-use crate::core::MazeConfig;
+use crate::core::{MazeConfig, StartupSets};
 
 pub const COLLISION_LAYER_AGENT: u32 = 1 << 1;
 pub const NUM_AGENT_RAYS: u32 = 16;
@@ -30,9 +30,6 @@ pub struct AgentConfig {
     #[pyo3(get, set)]
     #[derivative(Default(value = "10.0"))]
     pub speed: f32,
-
-    #[pyo3(get, set)]
-    pub position: (f32, f32),
 
     #[pyo3(get, set)]
     #[derivative(Default(value = "60.0"))]
@@ -69,7 +66,7 @@ pub struct AgentPlugin;
 impl Plugin for AgentPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(PreStartup, spawn_agent_assets);
-        app.add_systems(Startup, systems::spawn_agents);
+        app.add_systems(Startup, systems::spawn_agents.in_set(StartupSets::Agents));
     }
 }
 

@@ -48,7 +48,8 @@ impl Plugin for OccupancyGridPlugin {
             Startup,
             (
                 systems::setup_key_instructions,
-                systems::setup_hover_box,
+                systems::setup_hover_box::<PlayerGrid>,
+                systems::setup_hover_box::<TrueGrid>,
                 systems::spawn_grid_texture::<PlayerGrid>,
                 systems::spawn_grid_texture::<TrueGrid>,
             )
@@ -58,11 +59,15 @@ impl Plugin for OccupancyGridPlugin {
             Update,
             (
                 systems::update_grid_texture::<PlayerGrid>,
-                systems::toggle_grid::<PlayerGrid>.run_if(input_just_pressed(KeyCode::KeyO)),
+                systems::toggle_grid::<PlayerGrid, TrueGrid>
+                    .run_if(input_just_pressed(KeyCode::KeyO)),
                 systems::update_grid_texture::<TrueGrid>,
-                systems::toggle_grid::<TrueGrid>.run_if(input_just_pressed(KeyCode::KeyT)),
+                systems::toggle_grid::<TrueGrid, PlayerGrid>
+                    .run_if(input_just_pressed(KeyCode::KeyT)),
                 systems::cursor_to_grid_cell::<PlayerGrid>,
                 systems::update_hover_box::<PlayerGrid>,
+                systems::cursor_to_grid_cell::<TrueGrid>,
+                systems::update_hover_box::<TrueGrid>,
             )
                 .run_if(|config: Res<MazeConfig>| !config.headless),
         );

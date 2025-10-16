@@ -10,6 +10,9 @@ use crate::{
 #[reflect(Component)]
 pub struct Wall;
 
+#[derive(Debug, Clone, Default, Resource)]
+pub struct WallSegments(pub Vec<(Vec2, Vec2)>);
+
 #[derive(Debug, Clone, Copy, Default, Component, Reflect)]
 #[reflect(Component)]
 pub struct TimeText;

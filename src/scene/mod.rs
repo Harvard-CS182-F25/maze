@@ -11,11 +11,11 @@ use serde::{Deserialize, Serialize};
 pub use components::*;
 pub use visual::*;
 
-use crate::core::MazeConfig;
+use crate::core::{MazeConfig, StartupSets};
 
 pub const COLLISION_LAYER_WALL: u32 = 1 << 0;
 pub const WALL_HEIGHT: f32 = 5.0;
-const WALL_THICKNESS: f32 = 1.0;
+pub const WALL_THICKNESS: f32 = 1.0;
 
 #[gen_stub_pyclass]
 #[pyclass(name = "MazeGenerationConfig")]
@@ -47,7 +47,10 @@ impl Plugin for ScenePlugin {
         });
 
         app.add_systems(PreStartup, (init_wall_assets, systems::spawn_seed_and_time));
-        app.add_systems(Startup, (systems::setup_scene, systems::spawn_walls));
+        app.add_systems(
+            Startup,
+            (systems::setup_scene, systems::spawn_walls).in_set(StartupSets::Walls),
+        );
         app.add_systems(Update, systems::update_time);
     }
 }

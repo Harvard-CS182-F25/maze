@@ -1,5 +1,5 @@
 use avian3d::prelude::*;
-use bevy::{platform::collections::HashSet, prelude::*};
+use bevy::prelude::*;
 use maze_generator::prelude::*;
 use maze_generator::recursive_backtracking::RbGenerator;
 use pyo3::prelude::*;
@@ -7,10 +7,11 @@ use pyo3::prelude::*;
 use crate::{
     agent::COLLISION_LAYER_AGENT,
     core::MazeConfig,
-    occupancy_grid::TrueGrid,
+    occupancy_grid::{LOGIT_CLAMP, TrueGrid},
     python::game_state::EntityType,
     scene::{
-        COLLISION_LAYER_WALL, TimeText, WALL_HEIGHT, WALL_THICKNESS, WallBundle, WallGraphicsAssets,
+        COLLISION_LAYER_WALL, TimeText, WALL_HEIGHT, WALL_THICKNESS, WallBundle,
+        WallGraphicsAssets, WallSegments,
     },
 };
 
@@ -78,21 +79,6 @@ fn push_vertical(
     segs.push((Vec2::new(x, az), Vec2::new(x, bz)));
 }
 
-fn world_position_to_grid_index(
-    position: (f32, f32),
-    cell_size: f32,
-    world_width: f32,
-    world_height: f32,
-) -> (u32, u32) {
-    let half_width = world_width * 0.5;
-    let half_height = world_height * 0.5;
-
-    let x = ((position.0 + half_width) / cell_size).floor() as u32;
-    let y = ((position.1 + half_height) / cell_size).floor() as u32;
-
-    (x, y)
-}
-
 pub fn segments_from_maze(maze: &Maze, config: &MazeConfig, pad: f32) -> Vec<(Vec2, Vec2)> {
     let cell = config.maze_generation.cell_size;
     let (w, h) = maze.size;
@@ -107,26 +93,6 @@ pub fn segments_from_maze(maze: &Maze, config: &MazeConfig, pad: f32) -> Vec<(Ve
 
     let mut segments = Vec::new();
 
-    let flag_positions = config.flags.positions.clone();
-    let capture_positions = config.capture_points.positions.clone();
-    let agent_position = config.agent.position;
-
-    // make list of cells that should not have walls
-    let free_cells = flag_positions
-        .iter()
-        .chain(capture_positions.iter())
-        .chain(std::iter::once(&agent_position))
-        .copied()
-        .map(|pos| {
-            world_position_to_grid_index(
-                pos,
-                config.agent.occupancy_grid_cell_size,
-                config.maze_generation.width,
-                config.maze_generation.height,
-            )
-        })
-        .collect::<HashSet<_>>();
-
     // top (north) border and left (west) border
     for c in 0..w {
         push_horizontal(&mut segments, x0, z0, cell, 0, c, pad, xmin, xmax);
@@ -135,16 +101,9 @@ pub fn segments_from_maze(maze: &Maze, config: &MazeConfig, pad: f32) -> Vec<(Ve
         push_vertical(&mut segments, x0, z0, cell, 0, r, pad, zmin, zmax);
     }
 
-    info!("Free cells: {:?}", free_cells);
-
     // interior: add East/South walls where there is NO passage
     for y in 0..h {
         for x in 0..w {
-            if free_cells.contains(&(y as u32, x as u32)) {
-                info!("Skipping walls for free cell: ({}, {})", y, x);
-                continue;
-            }
-
             let field = maze.get_field(&Coordinates::new(x, y)).expect("in-bounds");
             if !field.has_passage(&Direction::East) {
                 push_vertical(&mut segments, x0, z0, cell, x + 1, y, pad, zmin, zmax);
@@ -159,25 +118,35 @@ pub fn segments_from_maze(maze: &Maze, config: &MazeConfig, pad: f32) -> Vec<(Ve
 }
 
 fn overlapping_indexes(
-    aabb_bottom_left: Vec2,
-    aabb_top_right: Vec2,
-    cell_size: f32,
-    width: f32,
-    height: f32,
+    aabb_min: Vec2,    // bottom-left  (x,y)
+    aabb_max: Vec2,    // top-right    (x,y)
+    cell_size: f32,    // occupancy grid cell size (world units)
+    world_width: f32,  // world extent in X
+    world_height: f32, // world extent in Y (your Z)
 ) -> Vec<(u32, u32)> {
-    let (min_x, min_y) =
-        world_position_to_grid_index(aabb_bottom_left.into(), cell_size, width, height);
-    let (max_x, max_y) =
-        world_position_to_grid_index(aabb_top_right.into(), cell_size, width, height);
+    let grid_w = (world_width / cell_size).round() as i32;
+    let grid_h = (world_height / cell_size).round() as i32;
 
-    let mut indexes = Vec::new();
-    for x in min_x..max_x {
-        for y in min_y..max_y {
-            indexes.push((x, y));
-        }
+    let half_w = world_width * 0.5;
+    let half_h = world_height * 0.5;
+
+    let min_c = (((aabb_min.x + half_w) / cell_size).floor() as i32).clamp(0, grid_w - 1);
+    let min_r = (((aabb_min.y + half_h) / cell_size).floor() as i32).clamp(0, grid_h - 1);
+
+    let max_c = ((((aabb_max.x + half_w) / cell_size).ceil() as i32) - 1).clamp(0, grid_w - 1);
+    let max_r = ((((aabb_max.y + half_h) / cell_size).ceil() as i32) - 1).clamp(0, grid_h - 1);
+
+    if max_c < min_c || max_r < min_r {
+        return Vec::new();
     }
 
-    indexes
+    let mut out = Vec::with_capacity(((max_c - min_c + 1) * (max_r - min_r + 1)) as usize);
+    for r in min_r..=max_r {
+        for c in min_c..=max_c {
+            out.push((c as u32, r as u32));
+        }
+    }
+    out
 }
 
 pub fn spawn_seed_and_time(
@@ -274,10 +243,14 @@ pub fn spawn_walls(
         let height = py_obj.height as u32;
         for index in 0..(width * height) {
             py_obj.grid[index as usize].assignment = Some(EntityType::Empty);
-            py_obj.grid[index as usize].logit_free = 1.0;
+            py_obj.grid[index as usize].logit_free = LOGIT_CLAMP;
+            py_obj.grid[index as usize].logit_wall = -LOGIT_CLAMP;
+            py_obj.grid[index as usize].logit_flag = -LOGIT_CLAMP;
+            py_obj.grid[index as usize].logit_capture_point = -LOGIT_CLAMP;
         }
     });
 
+    commands.insert_resource(WallSegments(segments.clone()));
     for (p0, p1) in segments {
         let mut entity = commands.spawn(WallBundle::new(p0, p1, WALL_THICKNESS));
 
@@ -291,7 +264,7 @@ pub fn spawn_walls(
             p0.y.max(p1.y) + WALL_THICKNESS * 0.5,
         );
 
-        let indexes = overlapping_indexes(
+        let wall_indexes = overlapping_indexes(
             aabb_bottom_left,
             aabb_top_right,
             config.agent.occupancy_grid_cell_size,
@@ -304,10 +277,12 @@ pub fn spawn_walls(
             let mut py_obj = grid.borrow_mut(py);
             let width = py_obj.width as u32;
 
-            for (ix, iy) in indexes.iter().copied() {
+            for (ix, iy) in wall_indexes.iter().copied() {
                 py_obj.grid[(ix + iy * width) as usize].assignment = Some(EntityType::Wall);
-                py_obj.grid[(ix + iy * width) as usize].logit_free = 0.0;
-                py_obj.grid[(ix + iy * width) as usize].logit_wall = 1.0;
+                py_obj.grid[(ix + iy * width) as usize].logit_free = -LOGIT_CLAMP;
+                py_obj.grid[(ix + iy * width) as usize].logit_wall = LOGIT_CLAMP;
+                py_obj.grid[(ix + iy * width) as usize].logit_flag = -LOGIT_CLAMP;
+                py_obj.grid[(ix + iy * width) as usize].logit_capture_point = -LOGIT_CLAMP;
             }
         });
 

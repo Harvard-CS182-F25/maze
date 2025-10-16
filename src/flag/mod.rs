@@ -3,25 +3,28 @@ mod systems;
 mod visual;
 
 use bevy::prelude::*;
+use derivative::Derivative;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::gen_stub_pyclass;
 use serde::{Deserialize, Serialize};
 
 pub use components::*;
 
-use crate::core::MazeConfig;
+use crate::core::{MazeConfig, StartupSets};
 
 pub const FLAG_INTERACTION_RADIUS: f32 = 3.0;
 pub const CAPTURE_POINT_INTERACTION_RADIUS: f32 = 3.0;
 
 #[gen_stub_pyclass]
 #[pyclass(name = "FlagConfig")]
-#[derive(Debug, Clone, Default, Resource, Reflect, Serialize, Deserialize)]
+#[derive(Debug, Clone, Resource, Reflect, Serialize, Deserialize, Derivative)]
+#[derivative(Default)]
 #[serde(default)]
 #[reflect(Resource)]
 pub struct FlagConfig {
     #[pyo3(get, set)]
-    pub positions: Vec<(f32, f32)>,
+    #[derivative(Default(value = "1"))]
+    pub number: usize,
 }
 
 #[pymethods]
@@ -42,12 +45,14 @@ impl FlagConfig {
 
 #[gen_stub_pyclass]
 #[pyclass(name = "CapturePointConfig")]
-#[derive(Debug, Clone, Default, Resource, Reflect, Serialize, Deserialize)]
+#[derive(Debug, Clone, Resource, Reflect, Serialize, Deserialize, Derivative)]
+#[derivative(Default)]
 #[serde(default)]
 #[reflect(Resource)]
 pub struct CapturePointConfig {
     #[pyo3(get, set)]
-    pub positions: Vec<(f32, f32)>,
+    #[derivative(Default(value = "1"))]
+    pub number: usize,
 }
 
 #[pymethods]
@@ -71,8 +76,16 @@ impl Plugin for FlagPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<components::FlagCaptureCounts>();
         app.add_systems(PreStartup, init_flag_and_capture_point_assets);
-        app.add_systems(Startup, systems::spawn_flags);
-        app.add_systems(Startup, systems::spawn_capture_points);
+        app.add_systems(
+            Startup,
+            (systems::spawn_flags, systems::spawn_capture_points)
+                .in_set(StartupSets::FlagsAndCapturePoints),
+        );
+
+        app.add_systems(
+            Update,
+            systems::update_true_grid.run_if(|config: Res<MazeConfig>| !config.headless),
+        );
     }
 }
 

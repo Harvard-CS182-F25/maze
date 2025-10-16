@@ -13,7 +13,9 @@ pub struct HoverCell {
 }
 
 #[derive(Component)]
-pub struct HoverBox; // the floating UI container
+pub struct HoverBox<T> {
+    pub(super) _marker: std::marker::PhantomData<T>,
+} // the floating UI container
 
 #[derive(Component)]
 pub struct HoverBoxText; // the text inside it
