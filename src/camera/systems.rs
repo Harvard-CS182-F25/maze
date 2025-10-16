@@ -16,3 +16,41 @@ pub fn setup_camera(mut commands: Commands, config: Res<MazeConfig>) {
         }),
     ));
 }
+
+pub fn zoom_in(mut query: Query<&mut Projection, With<Camera3d>>) {
+    for mut proj in query.iter_mut() {
+        if let Projection::Orthographic(ortho) = &mut *proj {
+            ortho.scale += 0.001;
+        }
+    }
+}
+
+pub fn zoom_out(mut query: Query<&mut Projection, With<Camera3d>>) {
+    for mut proj in query.iter_mut() {
+        if let Projection::Orthographic(ortho) = &mut *proj {
+            ortho.scale -= 0.001;
+        }
+    }
+}
+
+pub fn pan_camera(
+    mut query: Query<&mut Transform, With<Camera3d>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+) {
+    let mut direction = Vec3::ZERO;
+    if keyboard_input.pressed(KeyCode::ArrowUp) {
+        direction.z -= 0.1;
+    }
+    if keyboard_input.pressed(KeyCode::ArrowDown) {
+        direction.z += 0.1;
+    }
+    if keyboard_input.pressed(KeyCode::ArrowLeft) {
+        direction.x -= 0.1;
+    }
+    if keyboard_input.pressed(KeyCode::ArrowRight) {
+        direction.x += 0.1;
+    }
+    for mut transform in query.iter_mut() {
+        transform.translation += direction;
+    }
+}

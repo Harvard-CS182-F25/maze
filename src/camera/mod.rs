@@ -1,6 +1,8 @@
 mod systems;
 
+use bevy::input::common_conditions::input_pressed;
 use bevy::prelude::*;
+
 use derivative::Derivative;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::gen_stub_pyclass;
@@ -38,5 +40,13 @@ pub struct CameraPlugin;
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, systems::setup_camera);
+        app.add_systems(
+            Update,
+            (
+                systems::zoom_in.run_if(input_pressed(KeyCode::Equal)),
+                systems::zoom_out.run_if(input_pressed(KeyCode::Minus)),
+                systems::pan_camera,
+            ),
+        );
     }
 }

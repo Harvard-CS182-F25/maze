@@ -144,6 +144,7 @@ fn _core(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<python::game_state::EntityType>()?;
     m.add_class::<occupancy_grid::OccupancyGrid>()?;
     m.add_class::<occupancy_grid::OccupancyCellView>()?;
+    m.add_class::<python::game_state::SensorConfidence>()?;
 
     Ok(())
 }

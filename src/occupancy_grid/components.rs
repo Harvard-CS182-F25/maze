@@ -9,35 +9,52 @@ use crate::python::game_state::EntityType;
 #[derive(Debug, Clone, Copy, PartialEq, Reflect)]
 pub struct OccupancyGridEntry {
     pub assignment: Option<EntityType>,
-    pub p_free: f32,
-    pub p_wall: f32,
-    pub p_flag: f32,
-    pub p_capture_point: f32,
+    pub logit_free: f32,
+    pub logit_wall: f32,
+    pub logit_flag: f32,
+    pub logit_capture_point: f32,
 }
+
+pub const LOGIT_CLAMP: f32 = 6.0;
 
 impl Default for OccupancyGridEntry {
     fn default() -> Self {
         Self {
             assignment: None,
-            p_free: 0.0,
-            p_wall: 0.0,
-            p_flag: 0.0,
-            p_capture_point: 0.0,
+            logit_free: 0.0,
+            logit_wall: 0.0,
+            logit_flag: 0.0,
+            logit_capture_point: 0.0,
         }
+    }
+}
+
+impl OccupancyGridEntry {
+    pub fn probabilities(&self) -> (f32, f32, f32, f32) {
+        let exp_free = self.logit_free.exp();
+        let exp_wall = self.logit_wall.exp();
+        let exp_flag = self.logit_flag.exp();
+        let exp_capture_point = self.logit_capture_point.exp();
+
+        let sum = exp_free + exp_wall + exp_flag + exp_capture_point;
+
+        (
+            exp_free / sum,
+            exp_wall / sum,
+            exp_flag / sum,
+            exp_capture_point / sum,
+        )
     }
 }
 
 impl std::fmt::Display for OccupancyGridEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (p_free, p_wall, p_flag, p_capture_point) = self.probabilities();
+
         write!(
             f,
-            "OccupancyGridEntry(assignment: {:?}, p_free: {:.2}, p_wall: {:.2}, p_flag: {:.2}, p_capture_point: {:.2}, p_unknown: {:.2})",
-            self.assignment,
-            self.p_free,
-            self.p_wall,
-            self.p_flag,
-            self.p_capture_point,
-            1.0 - (self.p_free + self.p_wall + self.p_flag + self.p_capture_point)
+            "OccupancyGridEntry(assignment: {:?}, p_free: {:.2}, p_wall: {:.2}, p_flag: {:.2}, p_capture_point: {:.2})",
+            self.assignment, p_free, p_wall, p_flag, p_capture_point
         )
     }
 }
@@ -70,71 +87,77 @@ impl OccupancyCellView {
     }
 
     #[getter]
-    pub fn p_free(&self, py: Python) -> PyResult<f32> {
+    pub fn logit_free(&self, py: Python) -> PyResult<f32> {
         let grid = self.grid.borrow(py);
         let entry = &grid.grid[self.index];
-        Ok(entry.p_free)
+        Ok(entry.logit_free)
     }
 
     #[setter]
-    pub fn set_p_free(&self, value: f32) -> PyResult<()> {
+    pub fn set_logit_free(&self, value: f32) -> PyResult<()> {
         Python::attach(|py| {
             let mut grid = self.grid.borrow_mut(py);
             let entry = &mut grid.grid[self.index];
-            entry.p_free = value;
+            entry.logit_free = value.clamp(-LOGIT_CLAMP, LOGIT_CLAMP);
             Ok(())
         })
     }
 
     #[getter]
-    pub fn p_wall(&self, py: Python) -> PyResult<f32> {
+    pub fn logit_wall(&self, py: Python) -> PyResult<f32> {
         let grid = self.grid.borrow(py);
         let entry = &grid.grid[self.index];
-        Ok(entry.p_wall)
+        Ok(entry.logit_wall)
     }
 
     #[setter]
-    pub fn set_p_wall(&self, value: f32) -> PyResult<()> {
+    pub fn set_logit_wall(&self, value: f32) -> PyResult<()> {
         Python::attach(|py| {
             let mut grid = self.grid.borrow_mut(py);
             let entry = &mut grid.grid[self.index];
-            entry.p_wall = value;
+            entry.logit_wall = value.clamp(-LOGIT_CLAMP, LOGIT_CLAMP);
             Ok(())
         })
     }
 
     #[getter]
-    pub fn p_flag(&self, py: Python) -> PyResult<f32> {
+    pub fn logit_flag(&self, py: Python) -> PyResult<f32> {
         let grid = self.grid.borrow(py);
         let entry = &grid.grid[self.index];
-        Ok(entry.p_flag)
+        Ok(entry.logit_flag)
     }
 
     #[setter]
-    pub fn set_p_flag(&self, value: f32) -> PyResult<()> {
+    pub fn set_logit_flag(&self, value: f32) -> PyResult<()> {
         Python::attach(|py| {
             let mut grid = self.grid.borrow_mut(py);
             let entry = &mut grid.grid[self.index];
-            entry.p_flag = value;
+            entry.logit_flag = value.clamp(-LOGIT_CLAMP, LOGIT_CLAMP);
             Ok(())
         })
     }
 
     #[getter]
-    pub fn p_capture_point(&self, py: Python) -> PyResult<f32> {
+    pub fn logit_capture_point(&self, py: Python) -> PyResult<f32> {
         let grid = self.grid.borrow(py);
         let entry = &grid.grid[self.index];
-        Ok(entry.p_capture_point)
+        Ok(entry.logit_capture_point)
     }
 
     #[setter]
-    pub fn set_p_capture_point(&self, value: f32) -> PyResult<()> {
+    pub fn set_logit_capture_point(&self, value: f32) -> PyResult<()> {
         Python::attach(|py| {
             let mut grid = self.grid.borrow_mut(py);
             let entry = &mut grid.grid[self.index];
-            entry.p_capture_point = value;
+            entry.logit_capture_point = value.clamp(-LOGIT_CLAMP, LOGIT_CLAMP);
             Ok(())
         })
+    }
+
+    pub fn probabilities(&self, py: Python) -> PyResult<(f32, f32, f32, f32)> {
+        let grid = self.grid.borrow(py);
+        let entry = &grid.grid[self.index];
+        Ok(entry.probabilities())
     }
 }
 
@@ -154,6 +177,8 @@ impl std::fmt::Display for OccupancyCellView {
 pub struct OccupancyGrid {
     pub grid: Vec<OccupancyGridEntry>,
     #[pyo3(get)]
+    pub cell_size: f32,
+    #[pyo3(get)]
     pub width: usize,
     #[pyo3(get)]
     pub height: usize,
@@ -163,9 +188,10 @@ pub struct OccupancyGrid {
 #[pymethods]
 impl OccupancyGrid {
     #[new]
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new(width: usize, height: usize, cell_size: f32) -> Self {
         Self {
             grid: vec![OccupancyGridEntry::default(); width * height],
+            cell_size,
             width,
             height,
         }
@@ -190,6 +216,7 @@ impl OccupancyGrid {
         Ok(OccupancyCellView { grid, index })
     }
 
+    #[getter]
     pub fn shape(&self) -> (usize, usize) {
         (self.height, self.width)
     }
@@ -213,6 +240,15 @@ impl OccupancyGridView {
     }
 
     #[getter]
+    pub fn cell_size(&self) -> PyResult<f32> {
+        Python::attach(|py| {
+            let grid = self.inner.read().unwrap();
+            let grid_ref = grid.borrow(py);
+            Ok(grid_ref.cell_size)
+        })
+    }
+
+    #[getter]
     pub fn width(&self) -> PyResult<usize> {
         Python::attach(|py| {
             let grid = self.inner.read().unwrap();
@@ -230,6 +266,7 @@ impl OccupancyGridView {
         })
     }
 
+    #[getter]
     pub fn shape(&self) -> PyResult<(usize, usize)> {
         Python::attach(|py| {
             let grid = self.inner.read().unwrap();

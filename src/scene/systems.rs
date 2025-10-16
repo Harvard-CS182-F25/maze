@@ -1,5 +1,5 @@
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{platform::collections::HashSet, prelude::*};
 use maze_generator::prelude::*;
 use maze_generator::recursive_backtracking::RbGenerator;
 use pyo3::prelude::*;
@@ -76,8 +76,24 @@ fn push_vertical(
     segs.push((Vec2::new(x, az), Vec2::new(x, bz)));
 }
 
-pub fn segments_from_maze(maze: &Maze, cell: f32, pad: f32) -> Vec<(Vec2, Vec2)> {
-    let (w, h) = maze.size; // i32
+fn world_position_to_grid_index(
+    position: (f32, f32),
+    cell_size: f32,
+    world_width: f32,
+    world_height: f32,
+) -> (u32, u32) {
+    let half_width = world_width * 0.5;
+    let half_height = world_height * 0.5;
+
+    let x = ((position.0 + half_width) / cell_size).floor() as u32;
+    let y = ((position.1 + half_height) / cell_size).floor() as u32;
+
+    (x, y)
+}
+
+pub fn segments_from_maze(maze: &Maze, config: &MazeConfig, pad: f32) -> Vec<(Vec2, Vec2)> {
+    let cell = config.maze_generation.cell_size;
+    let (w, h) = maze.size;
     let x0 = -(w as f32) * cell * 0.5;
     let z0 = -(h as f32) * cell * 0.5;
 
@@ -89,6 +105,26 @@ pub fn segments_from_maze(maze: &Maze, cell: f32, pad: f32) -> Vec<(Vec2, Vec2)>
 
     let mut segments = Vec::new();
 
+    let flag_positions = config.flags.positions.clone();
+    let capture_positions = config.capture_points.positions.clone();
+    let agent_position = config.agent.position;
+
+    // make list of cells that should not have walls
+    let free_cells = flag_positions
+        .iter()
+        .chain(capture_positions.iter())
+        .chain(std::iter::once(&agent_position))
+        .copied()
+        .map(|pos| {
+            world_position_to_grid_index(
+                pos,
+                config.agent.occupancy_grid_cell_size,
+                config.maze_generation.width,
+                config.maze_generation.height,
+            )
+        })
+        .collect::<HashSet<_>>();
+
     // top (north) border and left (west) border
     for c in 0..w {
         push_horizontal(&mut segments, x0, z0, cell, 0, c, pad, xmin, xmax);
@@ -97,9 +133,16 @@ pub fn segments_from_maze(maze: &Maze, cell: f32, pad: f32) -> Vec<(Vec2, Vec2)>
         push_vertical(&mut segments, x0, z0, cell, 0, r, pad, zmin, zmax);
     }
 
+    info!("Free cells: {:?}", free_cells);
+
     // interior: add East/South walls where there is NO passage
     for y in 0..h {
         for x in 0..w {
+            if free_cells.contains(&(y as u32, x as u32)) {
+                info!("Skipping walls for free cell: ({}, {})", y, x);
+                continue;
+            }
+
             let field = maze.get_field(&Coordinates::new(x, y)).expect("in-bounds");
             if !field.has_passage(&Direction::East) {
                 push_vertical(&mut segments, x0, z0, cell, x + 1, y, pad, zmin, zmax);
@@ -117,13 +160,13 @@ fn overlapping_indexes(
     aabb_bottom_left: Vec2,
     aabb_top_right: Vec2,
     cell_size: f32,
-    width: usize,
-    height: usize,
+    width: f32,
+    height: f32,
 ) -> Vec<(u32, u32)> {
-    let min_x = (aabb_bottom_left.x / cell_size).floor().max(0.0) as u32;
-    let max_x = (aabb_top_right.x / cell_size).ceil().min(width as f32) as u32;
-    let min_y = (aabb_bottom_left.y / cell_size).floor().max(0.0) as u32;
-    let max_y = (aabb_top_right.y / cell_size).ceil().min(height as f32) as u32;
+    let (min_x, min_y) =
+        world_position_to_grid_index(aabb_bottom_left.into(), cell_size, width, height);
+    let (max_x, max_y) =
+        world_position_to_grid_index(aabb_top_right.into(), cell_size, width, height);
 
     let mut indexes = Vec::new();
     for x in min_x..max_x {
@@ -155,11 +198,7 @@ pub fn spawn_walls(
         )
         .expect("Maze generation failed");
 
-    let segments = segments_from_maze(
-        &maze,
-        config.maze_generation.cell_size,
-        WALL_THICKNESS * 0.5,
-    );
+    let segments = segments_from_maze(&maze, &config, WALL_THICKNESS * 0.5);
 
     Python::attach(|py| {
         let grid = true_grid.0.write().unwrap();
@@ -167,8 +206,8 @@ pub fn spawn_walls(
         let width = py_obj.width as u32;
         let height = py_obj.height as u32;
         for index in 0..(width * height) {
-            py_obj.grid[index as usize].assignment = Some(EntityType::Empty());
-            py_obj.grid[index as usize].p_free = 1.0;
+            py_obj.grid[index as usize].assignment = Some(EntityType::Empty);
+            py_obj.grid[index as usize].logit_free = 1.0;
         }
     });
 
@@ -186,12 +225,11 @@ pub fn spawn_walls(
         );
 
         let indexes = overlapping_indexes(
-            aabb_bottom_left + Vec2::splat(config.maze_generation.width * 0.5),
-            aabb_top_right + Vec2::splat(config.maze_generation.height * 0.5),
+            aabb_bottom_left,
+            aabb_top_right,
             config.agent.occupancy_grid_cell_size,
-            (config.maze_generation.width / config.agent.occupancy_grid_cell_size).round() as usize,
-            (config.maze_generation.height / config.agent.occupancy_grid_cell_size).round()
-                as usize,
+            config.maze_generation.width,
+            config.maze_generation.height,
         );
 
         Python::attach(|py| {
@@ -200,9 +238,9 @@ pub fn spawn_walls(
             let width = py_obj.width as u32;
 
             for (ix, iy) in indexes.iter().copied() {
-                py_obj.grid[(ix + iy * width) as usize].assignment = Some(EntityType::Wall());
-                py_obj.grid[(ix + iy * width) as usize].p_free = 0.0;
-                py_obj.grid[(ix + iy * width) as usize].p_wall = 1.0;
+                py_obj.grid[(ix + iy * width) as usize].assignment = Some(EntityType::Wall);
+                py_obj.grid[(ix + iy * width) as usize].logit_free = 0.0;
+                py_obj.grid[(ix + iy * width) as usize].logit_wall = 1.0;
             }
         });
 

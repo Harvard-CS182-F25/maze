@@ -22,10 +22,20 @@ impl Plugin for OccupancyGridPlugin {
             / self.config.agent.occupancy_grid_cell_size)
             .round() as usize;
 
-        let player_grid = Python::attach(|py| Py::new(py, OccupancyGrid::new(width, height)))
-            .expect("Failed to create OccupancyGrid");
-        let true_grid = Python::attach(|py| Py::new(py, OccupancyGrid::new(width, height)))
-            .expect("Failed to create OccupancyGrid");
+        let player_grid = Python::attach(|py| {
+            Py::new(
+                py,
+                OccupancyGrid::new(width, height, self.config.agent.occupancy_grid_cell_size),
+            )
+        })
+        .expect("Failed to create OccupancyGrid");
+        let true_grid = Python::attach(|py| {
+            Py::new(
+                py,
+                OccupancyGrid::new(width, height, self.config.agent.occupancy_grid_cell_size),
+            )
+        })
+        .expect("Failed to create OccupancyGrid");
 
         app.insert_resource(PlayerGrid(Arc::new(RwLock::new(player_grid))));
         app.insert_resource(TrueGrid(Arc::new(RwLock::new(true_grid))));

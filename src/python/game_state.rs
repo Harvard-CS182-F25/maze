@@ -1,12 +1,14 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use pyo3::prelude::*;
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_complex_enum};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 use rand::rng;
 use rand_distr::Distribution;
 use rand_distr::Normal;
 
+use crate::agent::AGENT_RAYCAST_MAX_DISTANCE;
 use crate::core::MazeConfig;
+
 use crate::{
     agent::{Agent, RayCasters},
     character_controller::MaxLinearSpeed,
@@ -46,15 +48,15 @@ pub struct AgentState {
     pub max_speed: f32,
 }
 
-#[gen_stub_pyclass_complex_enum]
+#[gen_stub_pyclass_enum]
 #[pyclass(name = "EntityType", frozen)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
 pub enum EntityType {
-    Wall(),
-    Empty(),
-    Flag(u32),
-    CapturePoint(u32),
-    Unknown(u32),
+    Wall,
+    Empty,
+    Flag,
+    CapturePoint,
+    Unknown,
 }
 
 #[gen_stub_pyclass]
@@ -64,42 +66,104 @@ pub struct HitInfo {
     #[pyo3(get)]
     pub theta: f32,
     #[pyo3(get)]
-    pub hit: Option<EntityType>,
+    pub hit: EntityType,
     #[pyo3(get)]
-    pub distance: Option<f32>,
+    pub distance: f32,
+    #[pyo3(get)]
+    pub max_distance: f32,
+    #[pyo3(get)]
+    pub hit_confidence: SensorConfidence,
+    #[pyo3(get)]
+    pub free_confidence: SensorConfidence,
+}
+
+#[gen_stub_pyclass]
+#[pyclass(name = "SensorConfidence")]
+#[derive(Clone, Debug, PartialEq)]
+pub struct SensorConfidence {
+    #[pyo3(get)]
+    pub p_free: f32,
+    #[pyo3(get)]
+    pub p_wall: f32,
+    #[pyo3(get)]
+    pub p_flag: f32,
+    #[pyo3(get)]
+    pub p_capture_point: f32,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl SensorConfidence {
+    #[new]
+    pub fn new(p_free: f32, p_wall: f32, p_flag: f32, p_capture_point: f32) -> Self {
+        Self {
+            p_free,
+            p_wall,
+            p_flag,
+            p_capture_point,
+        }
+    }
+
+    pub fn as_tuple(&self) -> (f32, f32, f32, f32) {
+        (self.p_free, self.p_wall, self.p_flag, self.p_capture_point)
+    }
+}
+
+impl From<[f32; 4]> for SensorConfidence {
+    fn from(conf: [f32; 4]) -> Self {
+        Self {
+            p_free: conf[0],
+            p_wall: conf[1],
+            p_flag: conf[2],
+            p_capture_point: conf[3],
+        }
+    }
 }
 
 impl std::fmt::Display for HitInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.hit {
-            Some(collided_entity) => write!(
-                f,
-                "HitInfo(hit={:?}, distance={}, theta={})",
-                collided_entity,
-                self.distance.unwrap_or(-1.0),
-                self.theta
-            ),
-            None => write!(f, "HitInfo(hit=None, distance=None, theta={})", self.theta),
-        }
+        write!(
+            f,
+            "HitInfo(hit={:?}, distance={}, theta={})",
+            self.hit, self.distance, self.theta
+        )
     }
 }
 
 fn classify(
     e: Entity,
     kinds: &Query<(Option<&Wall>, Option<&Flag>, Option<&CapturePoint>)>,
-) -> Option<EntityType> {
-    if let Ok((is_wall, is_flag, is_cp)) = kinds.get(e) {
-        if is_wall.is_some() {
-            return Some(EntityType::Wall());
+) -> EntityType {
+    match kinds.get(e) {
+        Ok((Some(_), None, None)) => EntityType::Wall,
+        Ok((None, Some(_), None)) => EntityType::Flag,
+        Ok((None, None, Some(_))) => EntityType::CapturePoint,
+        Ok(kinds) => {
+            warn!(
+                "Entity {:?} has multiple kinds {:?}, classifying as Unknown",
+                e, kinds
+            );
+            EntityType::Unknown
         }
-        if let Some(_f) = is_flag {
-            return Some(EntityType::Flag(e.index()));
-        }
-        if let Some(_cp) = is_cp {
-            return Some(EntityType::CapturePoint(e.index()));
+        Err(err) => {
+            warn!(
+                "{:?} Entity {:?} has no kind, classifying as Unknown",
+                err, e
+            );
+            EntityType::Unknown
         }
     }
-    Some(EntityType::Unknown(e.index()))
+}
+
+#[inline]
+fn confidence_by_entity_type(entity_type: EntityType) -> SensorConfidence {
+    match entity_type {
+        EntityType::Wall => [0.05, 0.90, 0.05, 0.05].into(),
+        EntityType::Empty => [0.85, 0.15, 0.20, 0.20].into(),
+        EntityType::Flag => [0.05, 0.10, 0.85, 0.10].into(),
+        EntityType::CapturePoint => [0.05, 0.10, 0.10, 0.85].into(),
+        EntityType::Unknown => [0.25, 0.25, 0.25, 0.25].into(),
+    }
 }
 
 #[allow(clippy::type_complexity)]
@@ -133,24 +197,30 @@ pub fn collect_agent_state(
         .0
         .iter()
         .map(|raycaster| {
-            spatial_query
-                .cast_ray(
-                    agent_transform.translation + raycaster.origin,
-                    raycaster.direction,
-                    raycaster.max_distance,
-                    raycaster.solid,
-                    &raycaster.query_filter,
-                )
-                .map(|hit| HitInfo {
-                    theta: raycaster.direction.z.atan2(raycaster.direction.x),
-                    hit: classify(hit.entity, kinds),
-                    distance: Some(hit.distance),
-                })
-                .unwrap_or(HitInfo {
-                    theta: raycaster.direction.x.atan2(raycaster.direction.z),
-                    hit: None,
-                    distance: None,
-                })
+            let hit = spatial_query.cast_ray(
+                agent_transform.translation + raycaster.origin,
+                raycaster.direction,
+                raycaster.max_distance,
+                raycaster.solid,
+                &raycaster.query_filter,
+            );
+
+            let entity_type = hit
+                .map(|hit| classify(hit.entity, kinds))
+                .unwrap_or(EntityType::Empty);
+
+            let distance = hit
+                .map(|hit| hit.distance)
+                .unwrap_or(raycaster.max_distance);
+
+            HitInfo {
+                theta: raycaster.direction.z.atan2(raycaster.direction.x),
+                hit: entity_type,
+                distance,
+                max_distance: raycaster.max_distance,
+                hit_confidence: confidence_by_entity_type(entity_type),
+                free_confidence: [0.9, 0.01, 0.045, 0.045].into(),
+            }
         })
         .collect::<Vec<_>>();
     raycasts.sort_by(|a, b| a.theta.partial_cmp(&b.theta).unwrap());
@@ -178,10 +248,10 @@ pub fn collect_agent_state(
             .clone()
             .into_iter()
             .map(|hit_info| HitInfo {
-                distance: hit_info.distance.map(|d| {
+                distance: {
                     let noise = range_noise_distribution.sample(&mut rng());
-                    (d + noise).clamp(0.0, config.maze_generation.cell_size)
-                }),
+                    (hit_info.distance + noise).clamp(0.0, AGENT_RAYCAST_MAX_DISTANCE)
+                },
                 ..hit_info
             })
             .collect::<Vec<_>>(),

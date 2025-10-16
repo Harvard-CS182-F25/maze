@@ -14,19 +14,38 @@ use crate::{
 };
 
 pub fn setup_key_instructions(mut commands: Commands) {
-    commands.spawn((
-        Text::new("O: Toggle Computed Occupancy Grid | T: Toggle True Occupancy Grid"),
-        TextFont {
-            font_size: 14.0,
-            ..default()
-        },
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Px(5.0),
-            right: Val::Px(5.0),
-            ..default()
-        },
-    ));
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                display: Display::Grid,
+                top: Val::Px(5.0),
+                right: Val::Px(5.0),
+                padding: Val::Px(2.5).into(),
+                justify_items: JustifyItems::End,
+                align_items: AlignItems::Start,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("O: Toggle Computed Occupancy Grid | T: Toggle True Occupancy Grid"),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextLayout::new_with_justify(Justify::Right),
+            ));
+            parent.spawn((
+                Text::new("+/-: Zoom In/Out | Arrow Keys: Pan Camera"),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextLayout::new_with_justify(Justify::Right),
+            ));
+        });
 }
 
 pub fn toggle_grid<T: PyGridProvider>(mut query: Query<&mut Visibility, With<GridPlane<T>>>) {
@@ -159,10 +178,10 @@ fn encode_grid_to_rgba(grid: &OccupancyGrid) -> Vec<u8> {
             let entry = grid.grid[idx];
 
             let (r, g, b, a) = match entry.assignment {
-                Some(EntityType::Wall()) => (0u8, 0u8, 0u8, 200u8),
-                Some(EntityType::Empty()) => (255u8, 255u8, 255u8, 0u8),
-                Some(EntityType::Flag(_)) => (255u8, 0u8, 0u8, 200u8),
-                Some(EntityType::CapturePoint(_)) => (0u8, 0u8, 255u8, 200u8),
+                Some(EntityType::Wall) => (0u8, 0u8, 0u8, 200u8),
+                Some(EntityType::Empty) => (255u8, 255u8, 255u8, 0u8),
+                Some(EntityType::Flag) => (255u8, 0u8, 0u8, 200u8),
+                Some(EntityType::CapturePoint) => (0u8, 0u8, 255u8, 200u8),
                 _ => (127u8, 127u8, 127u8, 100u8),
             };
 

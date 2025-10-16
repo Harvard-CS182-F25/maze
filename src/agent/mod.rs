@@ -13,6 +13,8 @@ pub use components::*;
 use crate::core::MazeConfig;
 
 pub const COLLISION_LAYER_AGENT: u32 = 1 << 1;
+pub const NUM_AGENT_RAYS: u32 = 16;
+pub const AGENT_RAYCAST_MAX_DISTANCE: f32 = 20.0;
 
 #[gen_stub_pyclass]
 #[pyclass(name = "AgentConfig")]
