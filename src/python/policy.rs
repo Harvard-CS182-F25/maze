@@ -105,9 +105,7 @@ impl PolicyBridge {
                         .call_method(py, "get_action", (state, grid, elapsed.as_secs_f32()), None)?
                         .extract(py)?;
 
-                    let position: (f32, f32) =
-                        policy.call_method(py, "position", (), None)?.extract(py)?;
-
+                    let position: (f32, f32) = policy.getattr(py, "postion")?.extract(py)?;
                     Ok((action, position))
                 });
 

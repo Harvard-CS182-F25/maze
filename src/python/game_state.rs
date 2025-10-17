@@ -36,16 +36,27 @@ pub struct GameState {
 #[gen_stub_pyclass]
 #[pyclass(name = "AgentState", frozen)]
 pub struct AgentState {
+    /// The unique ID of the agent entity.
     #[pyo3(get)]
     pub id: u32,
+
+    /// The (noisy!) position of the agent in world coordinates
     #[pyo3(get)]
     pub position: (f32, f32),
+
+    /// The standard deviation of the position noise. This noise is Gaussian with mean 0 and stddev `position_stddev`.
     #[pyo3(get)]
     pub position_stddev: f32,
+
+    /// The results of the agent's raycasts.
     #[pyo3(get)]
     pub raycasts: Vec<HitInfo>,
+
+    /// The entity ID of the flag the agent is currently carrying, if any.
     #[pyo3(get)]
     pub flag: Option<u32>,
+
+    /// The maximum linear speed of the agent.
     #[pyo3(get)]
     pub max_speed: f32,
 }
@@ -53,6 +64,7 @@ pub struct AgentState {
 #[gen_stub_pyclass_enum]
 #[pyclass(name = "EntityType", frozen)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
+/// The type of entity that was hit by a raycast. Note, that "Unknown" should not occur.
 pub enum EntityType {
     Wall,
     Empty,
@@ -78,16 +90,28 @@ impl std::fmt::Display for EntityType {
 #[pyclass(name = "HitInfo", frozen, str)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct HitInfo {
+    /// The angle of the raycast in radians, relative to the +x axis (right on the screen). Remember, +y points down on the screen!
     #[pyo3(get)]
     pub theta: f32,
+
+    /// The type of entity that was hit by the raycast.
     #[pyo3(get)]
     pub hit: EntityType,
+
+    /// How far the ray traveled before hitting something, or the max distance if nothing was hit.
     #[pyo3(get)]
     pub distance: f32,
+
+    /// The maximum distance the raycast could travel.
     #[pyo3(get)]
     pub max_distance: f32,
+
+    /// The confidence (probability of each class) of the thing that the ray hit.
+    /// If nothing was hit, this will be the confidence of an empty space.
     #[pyo3(get)]
     pub hit_confidence: SensorConfidence,
+
+    /// The confidence (probability of each class) of the cells that the ray passed through of being free space.
     #[pyo3(get)]
     pub free_confidence: SensorConfidence,
 }
@@ -96,12 +120,19 @@ pub struct HitInfo {
 #[pyclass(name = "SensorConfidence")]
 #[derive(Clone, Debug, PartialEq)]
 pub struct SensorConfidence {
+    /// Probability of being free space
     #[pyo3(get)]
     pub p_free: f32,
+
+    /// Probability of being a wall
     #[pyo3(get)]
     pub p_wall: f32,
+
+    /// Probability of being a flag
     #[pyo3(get)]
     pub p_flag: f32,
+
+    /// Probability of being a capture point
     #[pyo3(get)]
     pub p_capture_point: f32,
 }
