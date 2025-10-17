@@ -41,6 +41,8 @@ pub struct AgentState {
     #[pyo3(get)]
     pub position: (f32, f32),
     #[pyo3(get)]
+    pub position_stddev: f32,
+    #[pyo3(get)]
     pub raycasts: Vec<HitInfo>,
     #[pyo3(get)]
     pub flag: Option<u32>,
@@ -249,6 +251,7 @@ pub fn collect_agent_state(
     let true_agent_state = AgentState {
         id: entity.index(),
         position: agent_transform.translation.xz().into(),
+        position_stddev: config.agent.odometry_stddev,
         raycasts,
         flag: flag.map(|f| f.index()),
         max_speed: max_speed.0,

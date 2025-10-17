@@ -1,4 +1,5 @@
 use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
 use avian3d::prelude::SpatialQuery;
 use bevy::prelude::*;
@@ -94,12 +95,14 @@ impl PolicyBridge {
         let (tx_position, rx_position) = crossbeam_channel::bounded::<(f32, f32)>(60);
 
         std::thread::spawn(move || {
+            let mut start = Instant::now();
             while let Ok((state, grid)) = rx_state.recv() {
+                let elapsed = start.elapsed();
                 let action_and_position = Python::attach(|py| -> PyResult<(Action, (f32, f32))> {
                     let state = Py::new(py, state)?;
                     let grid = Py::new(py, OccupancyGridView { inner: grid })?;
                     let action: Action = policy
-                        .call_method(py, "get_action", (state, grid), None)?
+                        .call_method(py, "get_action", (state, grid, elapsed.as_secs_f32()), None)?
                         .extract(py)?;
 
                     let position: (f32, f32) =
@@ -122,6 +125,7 @@ impl PolicyBridge {
                         break; // exit thread on error
                     }
                 }
+                start = Instant::now();
             }
         });
 
