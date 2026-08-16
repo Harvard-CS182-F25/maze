@@ -21,7 +21,7 @@ pub const AGENT_RAYCAST_MAX_DISTANCE: f32 = 20.0;
 #[derive(Debug, Clone, Resource, Reflect, Derivative, Serialize, Deserialize)]
 #[derivative(Default)]
 #[reflect(Resource)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct AgentConfig {
     #[pyo3(get, set)]
     #[derivative(Default(value = "\"Agent\".to_string()"))]

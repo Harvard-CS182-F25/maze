@@ -17,7 +17,8 @@ use crate::{
     scene::WALL_HEIGHT,
 };
 
-pub fn setup_key_instructions(mut commands: Commands) {
+pub fn setup_key_instructions(mut commands: Commands, config: Res<MazeConfig>) {
+    let teleop_enabled = config.teleop;
     commands
         .spawn((
             Node {
@@ -49,6 +50,25 @@ pub fn setup_key_instructions(mut commands: Commands) {
                 },
                 TextLayout::new_with_justify(Justify::Right),
             ));
+            parent.spawn((
+                Text::new("P: Pause/Unpause | .: Cycle Speed (1x/2x/4x)"),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextLayout::new_with_justify(Justify::Right),
+            ));
+
+            if teleop_enabled {
+                parent.spawn((
+                    Text::new("WASD: Drive Agent | Space: Pickup/Drop Flag"),
+                    TextFont {
+                        font_size: 14.0,
+                        ..default()
+                    },
+                    TextLayout::new_with_justify(Justify::Right),
+                ));
+            }
         });
 }
 

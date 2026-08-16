@@ -104,6 +104,65 @@ class FlagConfig:
     @number.setter
     def number(self, value: builtins.int) -> None: ...
 
+class GameResult:
+    r"""
+    The outcome of a headless run.
+    """
+    @property
+    def elapsed_seconds(self) -> builtins.float:
+        r"""
+        Simulated seconds elapsed when the run stopped.
+        """
+    @property
+    def timed_out(self) -> builtins.bool:
+        r"""
+        True if the run stopped because it hit the time limit rather than finishing early.
+        """
+    @property
+    def final_mapping_error(self) -> builtins.float:
+        r"""
+        Fraction of ground-truth cells the agent's map got wrong, in `[0, 1]`.
+        """
+    @property
+    def mapping_error_cells(self) -> tuple[builtins.int, builtins.int]:
+        r"""
+        `(wrong, total)` cell counts behind `final_mapping_error`.
+        """
+    @property
+    def milestones(self) -> builtins.list[tuple[builtins.float, typing.Optional[builtins.float]]]:
+        r"""
+        For each requested threshold, the first simulated time the mapping error dropped to or
+        below it, or `None` if it never did. In the order the thresholds were given.
+        """
+    @property
+    def flag_capture_times(self) -> builtins.list[builtins.float]:
+        r"""
+        Simulated time of each flag capture, in order.
+        """
+    @property
+    def flags_captured(self) -> builtins.int: ...
+    @property
+    def total_flags(self) -> builtins.int: ...
+    @property
+    def seed(self) -> builtins.int:
+        r"""
+        The maze seed actually used. Worth recording when the config left `seed` unset, since it is
+        what makes a run reproducible.
+        """
+    @property
+    def policy_error(self) -> typing.Optional[builtins.str]:
+        r"""
+        Set if the Python policy raised or stopped responding, in which case the run ended early
+        and the other metrics describe only the part that ran.
+        """
+    def __str__(self) -> builtins.str: ...
+    def time_to_mapping_error(self, threshold:builtins.float) -> typing.Optional[builtins.float]:
+        r"""
+        The first simulated time the mapping error reached `threshold`, or `None` if it never did.
+        Only thresholds that were requested for the run are known.
+        """
+    def __repr__(self) -> builtins.str: ...
+
 class GameState:
     @property
     def agent(self) -> AgentState: ...
@@ -126,6 +185,13 @@ class HitInfo:
     def hit(self) -> EntityType:
         r"""
         The type of entity that was hit by the raycast.
+        """
+    @property
+    def did_hit(self) -> builtins.bool:
+        r"""
+        Whether the ray actually hit something, as opposed to travelling the full `max_distance`
+        without hitting anything. Prefer this over comparing `distance` to `max_distance`: this
+        flag is computed from the noise-free raycast, so range noise can never flip it.
         """
     @property
     def distance(self) -> builtins.float:
@@ -183,6 +249,20 @@ class MazeConfig:
     def use_true_map(self) -> builtins.bool: ...
     @use_true_map.setter
     def use_true_map(self, value: builtins.bool) -> None: ...
+    @property
+    def teleop(self) -> builtins.bool:
+        r"""
+        When true the agent is driven by the keyboard: `WASD` to move, `Space` to pick up and drop
+        flags. The Python policy still runs every tick — so a mapping agent keeps building its
+        occupancy grid while you drive — but the `Action::Move` it returns is ignored.
+        """
+    @teleop.setter
+    def teleop(self, value: builtins.bool) -> None:
+        r"""
+        When true the agent is driven by the keyboard: `WASD` to move, `Space` to pick up and drop
+        flags. The Python policy still runs every tick — so a mapping agent keeps building its
+        occupancy grid while you drive — but the `Action::Move` it returns is ignored.
+        """
 
 class MazeGenerationConfig:
     @property
@@ -332,4 +412,15 @@ class EntityType(Enum):
 def parse_config(config_path:builtins.str) -> MazeConfig: ...
 
 def run(config:MazeConfig, policy:typing.Any) -> typing.Optional[StateQueue]: ...
+
+def run_headless(config:MazeConfig, policy:typing.Any, max_seconds:builtins.float=300.0, mapping_error_milestones:typing.Sequence[builtins.float]=[0.800000011920929, 0.6000000238418579, 0.4000000059604645, 0.20000000298023224], stop_on_all_flags_captured:builtins.bool=False) -> GameResult:
+    r"""
+    Play a whole game with no window, as fast as the policy can be evaluated, and return what
+    happened.
+    
+    The clock is simulated: `max_seconds` counts simulated seconds, so a 300-second budget matches
+    the assignment's five-minute target regardless of how long the run actually takes. Every
+    simulated tick calls `get_action` exactly once — the sim waits for the policy rather than
+    skipping ahead — so a run is reproducible for a given maze seed.
+    """
 

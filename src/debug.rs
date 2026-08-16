@@ -29,13 +29,14 @@ impl Plugin for DebugPlugin {
         // Spawn text instructions for keybinds.
         app.add_systems(Startup, setup_key_instructions);
 
-        // Add systems for toggling the diagnostics UI and pausing and stepping the simulation.
+        // Add systems for toggling the diagnostics UI and stepping the simulation. Pausing itself
+        // lives in `PlaybackPlugin` (the `P` key) so it is available outside debug builds and so
+        // it stops the policy tick too, not just physics.
         app.add_systems(
             Update,
             (
                 toggle_diagnostics_ui.run_if(input_just_pressed(KeyCode::KeyU)),
-                toggle_paused.run_if(input_just_pressed(KeyCode::KeyP)),
-                step.run_if(physics_paused.and(input_just_pressed(KeyCode::Enter))),
+                step.run_if(paused.and(input_just_pressed(KeyCode::Enter))),
                 draw_axes,
             ),
         );
@@ -46,26 +47,19 @@ fn toggle_diagnostics_ui(mut settings: ResMut<PhysicsDiagnosticsUiSettings>) {
     settings.enabled = !settings.enabled;
 }
 
-fn physics_paused(time: Res<Time<Physics>>) -> bool {
+fn paused(time: Res<Time<Virtual>>) -> bool {
     time.is_paused()
 }
 
-fn toggle_paused(mut time: ResMut<Time<Physics>>) {
-    if time.is_paused() {
-        time.unpause();
-    } else {
-        time.pause();
-    }
-}
-
-/// Advances the physics simulation by one `Time<Fixed>` time step.
-fn step(mut physics_time: ResMut<Time<Physics>>, fixed_time: Res<Time<Fixed>>) {
-    physics_time.advance_by(fixed_time.delta());
+/// Advances the whole simulation — physics, the policy tick and the clock — by one `Time<Fixed>`
+/// step while paused.
+fn step(mut virtual_time: ResMut<Time<Virtual>>, fixed_time: Res<Time<Fixed>>) {
+    virtual_time.advance_by(fixed_time.delta());
 }
 
 fn setup_key_instructions(mut commands: Commands) {
     commands.spawn((
-        Text::new("U: Diagnostics UI | P: Pause/Unpause | Enter: Step"),
+        Text::new("U: Diagnostics UI | Enter: Step (while paused)"),
         TextFont {
             font_size: 14.0,
             ..default()

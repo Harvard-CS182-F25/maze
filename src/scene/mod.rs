@@ -9,6 +9,7 @@ use pyo3_stub_gen::derive::gen_stub_pyclass;
 use serde::{Deserialize, Serialize};
 
 pub use components::*;
+pub use systems::mapping_error;
 pub use visual::*;
 
 use crate::core::{MazeConfig, StartupSets};
@@ -22,7 +23,7 @@ pub const WALL_THICKNESS: f32 = 1.0;
 #[derive(Debug, Clone, Resource, Reflect, Derivative, Serialize, Deserialize)]
 #[derivative(Default)]
 #[reflect(Resource)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct MazeGenerationConfig {
     #[pyo3(get, set)]
     pub seed: Option<u32>,
@@ -51,13 +52,16 @@ impl Plugin for ScenePlugin {
             Startup,
             (systems::setup_scene, systems::spawn_walls).in_set(StartupSets::Walls),
         );
+        // These only write to HUD text entities, which do not exist in headless mode — and
+        // `update_mapping_error` takes the GIL every frame, so running it there is pure waste.
         app.add_systems(
             Update,
             (
                 systems::update_time,
                 systems::update_true_position,
                 systems::update_mapping_error,
-            ),
+            )
+                .run_if(|config: Res<MazeConfig>| !config.headless),
         );
     }
 }

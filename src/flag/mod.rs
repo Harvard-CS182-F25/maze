@@ -21,7 +21,7 @@ pub const COLLISION_LAYER_CAPTURE_POINT: u32 = 1 << 3;
 #[pyclass(name = "FlagConfig")]
 #[derive(Debug, Clone, Resource, Reflect, Serialize, Deserialize, Derivative)]
 #[derivative(Default)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 #[reflect(Resource)]
 pub struct FlagConfig {
     #[pyo3(get, set)]
@@ -49,7 +49,7 @@ impl FlagConfig {
 #[pyclass(name = "CapturePointConfig")]
 #[derive(Debug, Clone, Resource, Reflect, Serialize, Deserialize, Derivative)]
 #[derivative(Default)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 #[reflect(Resource)]
 pub struct CapturePointConfig {
     #[pyo3(get, set)]

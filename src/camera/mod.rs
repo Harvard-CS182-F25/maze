@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 #[pyclass(name = "CameraConfig")]
 #[derive(Debug, Clone, Resource, Reflect, Derivative, Serialize, Deserialize)]
 #[derivative(Default)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 #[reflect(Resource)]
 pub struct CameraConfig {
     #[pyo3(get, set)]

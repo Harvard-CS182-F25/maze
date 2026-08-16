@@ -2,7 +2,8 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
-use rand::rng;
+use rand::SeedableRng;
+use rand_chacha::ChaCha20Rng;
 use rand_distr::Distribution;
 use rand_distr::Normal;
 
@@ -62,8 +63,8 @@ pub struct AgentState {
 }
 
 #[gen_stub_pyclass_enum]
-#[pyclass(name = "EntityType", frozen)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
+#[pyclass(name = "EntityType", frozen, eq, hash, str)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
 /// The type of entity that was hit by a raycast. Note, that "Unknown" should not occur.
 pub enum EntityType {
     Wall,
@@ -97,6 +98,12 @@ pub struct HitInfo {
     /// The type of entity that was hit by the raycast.
     #[pyo3(get)]
     pub hit: EntityType,
+
+    /// Whether the ray actually hit something, as opposed to travelling the full `max_distance`
+    /// without hitting anything. Prefer this over comparing `distance` to `max_distance`: this
+    /// flag is computed from the noise-free raycast, so range noise can never flip it.
+    #[pyo3(get)]
+    pub did_hit: bool,
 
     /// How far the ray traveled before hitting something, or the max distance if nothing was hit.
     #[pyo3(get)]
@@ -170,8 +177,8 @@ impl std::fmt::Display for HitInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "HitInfo(hit={:?}, distance={}, theta={})",
-            self.hit, self.distance, self.theta
+            "HitInfo(hit={:?}, did_hit={}, distance={}, theta={})",
+            self.hit, self.did_hit, self.distance, self.theta
         )
     }
 }
@@ -212,9 +219,23 @@ fn confidence_by_entity_type(entity_type: EntityType) -> SensorConfidence {
     }
 }
 
+/// The RNG behind the odometry and range noise. Seeded from the maze seed so that a headless run
+/// with a fixed seed is reproducible; `rand::rng()` would make every run differ.
+#[derive(Resource)]
+pub struct SensorRng(pub ChaCha20Rng);
+
+impl SensorRng {
+    pub fn from_seed(seed: u32) -> Self {
+        let mut bytes = [0u8; 32];
+        bytes[..4].copy_from_slice(&seed.to_le_bytes());
+        SensorRng(ChaCha20Rng::from_seed(bytes))
+    }
+}
+
 #[allow(clippy::type_complexity)]
 pub fn collect_agent_state(
     config: &MazeConfig,
+    sensor_rng: &mut SensorRng,
     spatial_query: &SpatialQuery,
     agent: Query<
         (
@@ -265,6 +286,7 @@ pub fn collect_agent_state(
             HitInfo {
                 theta: raycaster.direction.z.atan2(raycaster.direction.x),
                 hit: entity_type,
+                did_hit: hit.is_some(),
                 distance,
                 max_distance: raycaster.max_distance,
                 hit_confidence: confidence_by_entity_type(entity_type),
@@ -288,10 +310,11 @@ pub fn collect_agent_state(
         max_speed: max_speed.0,
     };
 
+    let rng = &mut sensor_rng.0;
     let noisy_agent_state = AgentState {
         position: (
-            agent_transform.translation.x + odometry_noise_distribution.sample(&mut rng()),
-            agent_transform.translation.z + odometry_noise_distribution.sample(&mut rng()),
+            agent_transform.translation.x + odometry_noise_distribution.sample(rng),
+            agent_transform.translation.z + odometry_noise_distribution.sample(rng),
         ),
         raycasts: true_agent_state
             .raycasts
@@ -299,7 +322,7 @@ pub fn collect_agent_state(
             .into_iter()
             .map(|hit_info| HitInfo {
                 distance: {
-                    let noise = range_noise_distribution.sample(&mut rng());
+                    let noise = range_noise_distribution.sample(rng);
                     (hit_info.distance + noise).clamp(0.0, AGENT_RAYCAST_MAX_DISTANCE)
                 },
                 ..hit_info

@@ -10,13 +10,18 @@ use crate::character_controller;
 use crate::flag;
 use crate::interaction_range;
 use crate::occupancy_grid;
+use crate::playback;
 use crate::scene;
+use crate::teleop;
 
 #[gen_stub_pyclass]
 #[pyclass(name = "MazeConfig")]
 #[derive(Debug, Clone, Resource, Reflect, Serialize, Deserialize, Derivative)]
 #[derivative(Default)]
-#[serde(default)]
+// `default` fills in anything the file omits; `deny_unknown_fields` makes anything the file
+// invents an error instead of a silent no-op. Without the latter a stale or mistyped key just
+// disappears, and the game runs with settings the config claims it isn't using.
+#[serde(default, deny_unknown_fields)]
 #[reflect(Resource)]
 pub struct MazeConfig {
     #[pyo3(get, set)]
@@ -35,6 +40,12 @@ pub struct MazeConfig {
     pub headless: bool,
     #[pyo3(get, set)]
     pub use_true_map: bool,
+
+    /// When true the agent is driven by the keyboard: `WASD` to move, `Space` to pick up and drop
+    /// flags. The Python policy still runs every tick — so a mapping agent keeps building its
+    /// occupancy grid while you drive — but the `Action::Move` it returns is ignored.
+    #[pyo3(get, set)]
+    pub teleop: bool,
 }
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -74,6 +85,8 @@ impl Plugin for MazePlugin {
             flag::FlagPlugin,
             interaction_range::InteractionRangePlugin,
             scene::ScenePlugin,
+            playback::PlaybackPlugin,
+            teleop::TeleopPlugin,
             occupancy_grid::OccupancyGridPlugin {
                 config: self.config.clone(),
             },

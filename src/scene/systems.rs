@@ -8,7 +8,8 @@ use crate::{
     agent::{Agent, COLLISION_LAYER_AGENT},
     core::MazeConfig,
     occupancy_grid::{LOGIT_CLAMP, PlayerGrid, TrueGrid},
-    python::game_state::EntityType,
+    playback::PlaybackSpeed,
+    python::game_state::{EntityType, SensorRng},
     scene::{
         COLLISION_LAYER_WALL, EstimatedPositionText, MappingErrorText, TimeText, TruePositionText,
         WALL_HEIGHT, WALL_THICKNESS, WallBundle, WallGraphicsAssets, WallSegments,
@@ -164,6 +165,9 @@ pub fn spawn_seed_and_time(
 
     info!("Using maze generation seed: {}", seed);
 
+    // Seed the sensor-noise RNG from the maze seed so a run is reproducible end to end.
+    commands.insert_resource(SensorRng::from_seed(seed));
+
     if config.headless {
         return;
     }
@@ -234,24 +238,39 @@ pub fn spawn_seed_and_time(
         });
 }
 
-pub fn update_time(mut query: Query<&mut Text, With<TimeText>>, time: Res<Time>) {
+pub fn update_time(
+    mut query: Query<&mut Text, With<TimeText>>,
+    time: Res<Time>,
+    virtual_time: Res<Time<Virtual>>,
+    speed: Res<PlaybackSpeed>,
+) {
+    let status = if virtual_time.is_paused() {
+        " [PAUSED]".to_string()
+    } else if speed.multiplier() != 1.0 {
+        format!(" [{}x]", speed.multiplier())
+    } else {
+        String::new()
+    };
+
     for mut text in query.iter_mut() {
-        text.0 = format!("Time: {:.2}s", time.elapsed_secs());
+        text.0 = format!("Time: {:.2}s{status}", time.elapsed_secs());
     }
 }
 
-pub fn update_mapping_error(
-    player_grid: Res<PlayerGrid>,
-    true_grid: Res<TrueGrid>,
-    mut query: Query<&mut Text, With<MappingErrorText>>,
-) {
+/// Counts `(wrong, total)` cells between the player's occupancy grid and the ground truth.
+///
+/// Only ground-truth cells that have been assigned and are neither a flag nor a capture point
+/// count towards the total — flags and capture points move, so holding students to them would be
+/// unfair. This is the single definition of "mapping error": both the HUD and the headless
+/// evaluation metrics call it.
+pub fn mapping_error(player_grid: &PlayerGrid, true_grid: &TrueGrid) -> (u32, u32) {
     Python::attach(|py| {
         let player_grid = player_grid.0.read().unwrap();
         let true_grid = true_grid.0.read().unwrap();
         let player_grid = player_grid.borrow(py);
         let true_grid = true_grid.borrow(py);
 
-        let mut error = 0;
+        let mut wrong = 0;
         let mut total = 0;
         for (player_entry, true_entry) in player_grid.grid.iter().zip(true_grid.grid.iter()) {
             if let Some(true_entity_type) = true_entry.assignment
@@ -260,17 +279,26 @@ pub fn update_mapping_error(
             {
                 total += 1;
                 if player_entry.assignment != true_entry.assignment {
-                    error += 1;
+                    wrong += 1;
                 }
             }
         }
 
-        let error_rate = (error as f32) / total.max(1) as f32 * 100.0;
-
-        for mut text in query.iter_mut() {
-            text.0 = format!("Mapping Error: {error:.0}/{total} [{error_rate:.1}%]");
-        }
+        (wrong, total)
     })
+}
+
+pub fn update_mapping_error(
+    player_grid: Res<PlayerGrid>,
+    true_grid: Res<TrueGrid>,
+    mut query: Query<&mut Text, With<MappingErrorText>>,
+) {
+    let (wrong, total) = mapping_error(&player_grid, &true_grid);
+    let error_rate = (wrong as f32) / total.max(1) as f32 * 100.0;
+
+    for mut text in query.iter_mut() {
+        text.0 = format!("Mapping Error: {wrong}/{total} [{error_rate:.1}%]");
+    }
 }
 
 pub fn update_true_position(
