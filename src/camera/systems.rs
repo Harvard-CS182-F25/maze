@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 use bevy::window::{CursorIcon, PrimaryWindow, SystemCursorIcon};
 
-use crate::{camera::CameraZoomLimits, core::MazeConfig};
+use crate::{
+    camera::{CameraZoomLimits, fit_scale},
+    core::MazeConfig,
+};
 
 pub fn setup_camera(
     mut commands: Commands,
@@ -12,10 +15,17 @@ pub fn setup_camera(
         return;
     }
 
-    let scale = config.camera.scale;
+    let board_size = Vec2::new(
+        config.maze_generation.world_width,
+        config.maze_generation.world_height,
+    );
+    let scale = windows
+        .single()
+        .map(|window| -fit_scale(board_size, Vec2::new(window.width(), window.height())))
+        .unwrap_or(-0.15);
     if let Ok(window) = windows.single() {
         commands.insert_resource(CameraZoomLimits::new(
-            Vec2::new(config.maze_generation.width, config.maze_generation.height),
+            board_size,
             config.maze_generation.cell_size,
             Vec2::new(window.width(), window.height()),
             scale,
@@ -125,7 +135,10 @@ pub fn pan_camera(
 
     let dragging = shift_held(&keys) && mouse_buttons.pressed(MouseButton::Left);
     let delta = drag_delta(&mut pan_state, dragging, window.cursor_position());
-    let board_size = Vec2::new(config.maze_generation.width, config.maze_generation.height);
+    let board_size = Vec2::new(
+        config.maze_generation.world_width,
+        config.maze_generation.world_height,
+    );
     let window_size = Vec2::new(window.width(), window.height());
     let padding = config.maze_generation.cell_size * 2.0;
 

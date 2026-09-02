@@ -74,7 +74,7 @@ fn generate_app(
         // Advance the clock by a fixed step per frame instead of tracking wall-clock time. This is
         // what lets a 300 simulated-second run finish in seconds, and what makes two runs with the
         // same seed identical.
-        let policy_hz = config.agent.policy_hz.clamp(1.0, 240.0);
+        let policy_hz = config.agent.effective_policy_hz();
         app.insert_resource(TimeUpdateStrategy::ManualDuration(
             std::time::Duration::from_secs_f64(1.0 / policy_hz as f64),
         ));
@@ -128,7 +128,7 @@ fn run(py: Python<'_>, config: MazeConfig, policy: Py<PyAny>) -> PyResult<Option
         )>(60);
         let (tx_stop, rx_stop) = crossbeam_channel::bounded::<()>(1);
 
-        let rate_hz = config.agent.policy_hz;
+        let rate_hz = config.agent.effective_policy_hz();
         let join = std::thread::spawn(move || {
             let mut app = generate_app(
                 config,
@@ -229,8 +229,6 @@ fn _core(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<core::MazeConfig>()?;
     m.add_class::<agent::AgentConfig>()?;
     m.add_class::<flag::FlagConfig>()?;
-    m.add_class::<flag::CapturePointConfig>()?;
-    m.add_class::<camera::CameraConfig>()?;
 
     m.add_class::<agent::Action>()?;
     m.add_class::<python::game_state::GameState>()?;

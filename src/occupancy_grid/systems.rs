@@ -67,8 +67,8 @@ pub fn spawn_grid_texture<T: PyGridProvider>(
 
     let handle = images.add(img);
 
-    let world_w = config.maze_generation.width;
-    let world_h = config.maze_generation.height;
+    let world_w = config.maze_generation.world_width;
+    let world_h = config.maze_generation.world_height;
     let mesh = meshes.add(Plane3d::default().mesh().size(world_w, world_h));
     let material = materials.add(StandardMaterial {
         base_color_texture: Some(handle.clone()),
@@ -234,8 +234,8 @@ pub fn cursor_to_grid_cell<T: PyGridProvider>(
     let local = inv.transform_point3(hit); // local.y should be ~0
 
     // Map local.x/local.z to [0, width)×[0, height)
-    let world_w = config.maze_generation.width;
-    let world_h = config.maze_generation.height;
+    let world_w = config.maze_generation.world_width;
+    let world_h = config.maze_generation.world_height;
     let cell = config.agent.occupancy_grid_cell_size;
     let grid_w = (world_w / cell).round() as u32;
     let grid_h = (world_h / cell).round() as u32;

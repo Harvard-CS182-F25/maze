@@ -96,8 +96,7 @@ pub struct PythonPolicyBridgePlugin {
 
 impl Plugin for PythonPolicyBridgePlugin {
     fn build(&self, app: &mut App) {
-        let hz = self.config.agent.policy_hz.clamp(1.0, 240.0);
-        let interval = 1.0_f32 / hz;
+        let interval = self.config.agent.policy_interval_secs();
         let lockstep = self.config.headless;
 
         let error_slot = PolicyErrorSlot::default();
@@ -269,16 +268,16 @@ fn send_game_states(
         agent: noisy_agent_state,
         total_flags: flags.iter().count() as u32,
         collected_flags: scores.0,
-        world_width: config.maze_generation.width,
-        world_height: config.maze_generation.height,
+        world_width: config.maze_generation.world_width,
+        world_height: config.maze_generation.world_height,
     };
 
     let true_state = GameState {
         agent: true_agent_state,
         total_flags: flags.iter().count() as u32,
         collected_flags: scores.0,
-        world_width: config.maze_generation.width,
-        world_height: config.maze_generation.height,
+        world_width: config.maze_generation.world_width,
+        world_height: config.maze_generation.world_height,
     };
 
     let dt = t.elapsed_since_dispatch;
@@ -374,13 +373,14 @@ fn apply_actions(
         return;
     };
 
+    // Teleop owns movement and flag interactions. The policy still receives
+    // observations and updates its map, but cannot issue competing commands.
+    if config.teleop {
+        return;
+    }
+
     match action {
         Action::Move { id, velocity } => {
-            // While a human is driving, the policy still runs (so a mapping agent keeps building
-            // its grid) but its movement is ignored so the two don't fight over the velocity.
-            if config.teleop {
-                return;
-            }
             if !check_agent_exists(id, agents) {
                 return;
             }

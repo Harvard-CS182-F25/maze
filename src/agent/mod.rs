@@ -46,6 +46,21 @@ pub struct AgentConfig {
     pub occupancy_grid_cell_size: f32,
 }
 
+impl AgentConfig {
+    const MIN_POLICY_HZ: f32 = 1.0;
+    const MAX_POLICY_HZ: f32 = 240.0;
+
+    /// The bounded rate used by both the policy timer and the headless clock.
+    pub(crate) fn effective_policy_hz(&self) -> f32 {
+        self.policy_hz
+            .clamp(Self::MIN_POLICY_HZ, Self::MAX_POLICY_HZ)
+    }
+
+    pub(crate) fn policy_interval_secs(&self) -> f32 {
+        self.effective_policy_hz().recip()
+    }
+}
+
 #[pymethods]
 impl AgentConfig {
     fn __repr__(&self) -> PyResult<String> {
@@ -76,4 +91,23 @@ fn spawn_agent_assets(mut commands: Commands, config: Res<MazeConfig>) {
     }
 
     commands.init_resource::<visual::AgentGraphicsAssets>();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AgentConfig;
+
+    #[test]
+    fn policy_rate_and_interval_share_the_same_bounds() {
+        let cases = [(0.5, 1.0), (60.0, 60.0), (500.0, 240.0)];
+
+        for (requested, effective) in cases {
+            let config = AgentConfig {
+                policy_hz: requested,
+                ..Default::default()
+            };
+            assert_eq!(config.effective_policy_hz(), effective);
+            assert!((config.policy_interval_secs() - effective.recip()).abs() < f32::EPSILON);
+        }
+    }
 }

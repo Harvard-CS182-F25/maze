@@ -32,10 +32,10 @@ pub fn spawn_agents(
                     let grid_row = i as u32 / py_obj.width as u32;
                     let x = (grid_col as f32) * config.agent.occupancy_grid_cell_size
                         + config.agent.occupancy_grid_cell_size / 2.0
-                        - config.maze_generation.width / 2.0;
+                        - config.maze_generation.world_width / 2.0;
                     let y = (grid_row as f32) * config.agent.occupancy_grid_cell_size
                         + config.agent.occupancy_grid_cell_size / 2.0
-                        - config.maze_generation.height / 2.0;
+                        - config.maze_generation.world_height / 2.0;
                     Some((x, y))
                 } else {
                     None

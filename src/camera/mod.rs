@@ -3,19 +3,12 @@ mod systems;
 use bevy::input::common_conditions::input_pressed;
 use bevy::prelude::*;
 
-use derivative::Derivative;
-use pyo3::prelude::*;
-use pyo3_stub_gen::derive::gen_stub_pyclass;
-use serde::{Deserialize, Serialize};
-
 const FIT_MARGIN: f32 = 1.15;
 const ZOOM_OUT_MARGIN: f32 = 3.0;
 const MAX_CELL_SIZE_PX: f32 = 500.0;
 
 /// Board-relative bounds for orthographic camera zoom.
 ///
-/// The limits use the initial configured scale as part of their range, so a
-/// user-provided `CameraConfig::scale` remains a valid starting point.
 #[derive(Resource)]
 pub(super) struct CameraZoomLimits {
     min_scale: f32,
@@ -41,37 +34,9 @@ impl CameraZoomLimits {
     }
 }
 
-fn fit_scale(board_size: Vec2, viewport_size: Vec2) -> f32 {
+pub(super) fn fit_scale(board_size: Vec2, viewport_size: Vec2) -> f32 {
     let viewport_size = viewport_size.max(Vec2::ONE);
     (board_size.x * FIT_MARGIN / viewport_size.x).max(board_size.y * FIT_MARGIN / viewport_size.y)
-}
-
-#[gen_stub_pyclass]
-#[pyclass(name = "CameraConfig")]
-#[derive(Debug, Clone, Resource, Reflect, Derivative, Serialize, Deserialize)]
-#[derivative(Default)]
-#[serde(default, deny_unknown_fields)]
-#[reflect(Resource)]
-pub struct CameraConfig {
-    #[pyo3(get, set)]
-    #[derivative(Default(value = "-0.15"))]
-    pub scale: f32,
-}
-
-#[pymethods]
-impl CameraConfig {
-    fn __repr__(&self) -> PyResult<String> {
-        Ok(format!("CameraConfig({})", self.__str__()?))
-    }
-
-    fn __str__(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(self).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "Failed to serialize CameraConfig: {}",
-                e
-            ))
-        })
-    }
 }
 
 pub struct CameraPlugin;

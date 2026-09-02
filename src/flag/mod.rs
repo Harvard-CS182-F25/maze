@@ -26,7 +26,10 @@ pub const COLLISION_LAYER_CAPTURE_POINT: u32 = 1 << 3;
 pub struct FlagConfig {
     #[pyo3(get, set)]
     #[derivative(Default(value = "1"))]
-    pub number: usize,
+    pub flag_count: usize,
+    #[pyo3(get, set)]
+    #[derivative(Default(value = "1"))]
+    pub capture_point_count: usize,
 }
 
 #[pymethods]
@@ -39,34 +42,6 @@ impl FlagConfig {
         serde_json::to_string_pretty(self).map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "Failed to serialize FlagConfig: {}",
-                e
-            ))
-        })
-    }
-}
-
-#[gen_stub_pyclass]
-#[pyclass(name = "CapturePointConfig")]
-#[derive(Debug, Clone, Resource, Reflect, Serialize, Deserialize, Derivative)]
-#[derivative(Default)]
-#[serde(default, deny_unknown_fields)]
-#[reflect(Resource)]
-pub struct CapturePointConfig {
-    #[pyo3(get, set)]
-    #[derivative(Default(value = "1"))]
-    pub number: usize,
-}
-
-#[pymethods]
-impl CapturePointConfig {
-    fn __repr__(&self) -> PyResult<String> {
-        Ok(format!("CapturePointConfig({})", self.__str__()?))
-    }
-
-    fn __str__(&self) -> PyResult<String> {
-        serde_json::to_string_pretty(self).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "Failed to serialize CapturePointConfig: {}",
                 e
             ))
         })

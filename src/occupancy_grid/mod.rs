@@ -16,9 +16,10 @@ pub struct OccupancyGridPlugin {
 
 impl Plugin for OccupancyGridPlugin {
     fn build(&self, app: &mut App) {
-        let width = (self.config.maze_generation.width / self.config.agent.occupancy_grid_cell_size)
+        let width = (self.config.maze_generation.world_width
+            / self.config.agent.occupancy_grid_cell_size)
             .round() as usize;
-        let height = (self.config.maze_generation.height
+        let height = (self.config.maze_generation.world_height
             / self.config.agent.occupancy_grid_cell_size)
             .round() as usize;
 

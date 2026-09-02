@@ -400,8 +400,8 @@ pub fn spawn_walls(
 
     let maze = generator
         .generate(
-            (config.maze_generation.width / config.maze_generation.cell_size).round() as i32,
-            (config.maze_generation.height / config.maze_generation.cell_size).round() as i32,
+            (config.maze_generation.world_width / config.maze_generation.cell_size).round() as i32,
+            (config.maze_generation.world_height / config.maze_generation.cell_size).round() as i32,
         )
         .expect("Maze generation failed");
 
@@ -439,8 +439,8 @@ pub fn spawn_walls(
             aabb_bottom_left,
             aabb_top_right,
             config.agent.occupancy_grid_cell_size,
-            config.maze_generation.width,
-            config.maze_generation.height,
+            config.maze_generation.world_width,
+            config.maze_generation.world_height,
         );
 
         Python::attach(|py| {

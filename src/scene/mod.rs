@@ -29,10 +29,10 @@ pub struct MazeGenerationConfig {
     pub seed: Option<u32>,
     #[pyo3(get, set)]
     #[derivative(Default(value = "100.0"))]
-    pub width: f32,
+    pub world_width: f32,
     #[pyo3(get, set)]
     #[derivative(Default(value = "100.0"))]
-    pub height: f32,
+    pub world_height: f32,
     #[pyo3(get, set)]
     #[derivative(Default(value = "5.0"))]
     pub cell_size: f32,

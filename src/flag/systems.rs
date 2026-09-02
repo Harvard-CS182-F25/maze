@@ -136,8 +136,8 @@ fn pick_positions_for(
     }
 
     // 5) Commit to grid and prepare world positions.
-    let world_w = config.maze_generation.width;
-    let world_h = config.maze_generation.height;
+    let world_w = config.maze_generation.world_width;
+    let world_h = config.maze_generation.world_height;
 
     let mut out = Vec::with_capacity(picked.len());
     for &i in &picked {
@@ -208,7 +208,7 @@ pub fn spawn_flags(
             &mut py_obj,
             &config,
             &mut rng,
-            config.flags.number,
+            config.flags.flag_count,
             EntityType::Flag,
         )
     });
@@ -254,7 +254,7 @@ pub fn spawn_capture_points(
             &mut py_obj,
             &config,
             &mut rng,
-            config.capture_points.number,
+            config.flags.capture_point_count,
             EntityType::CapturePoint,
         )
     });
@@ -312,8 +312,8 @@ pub fn update_true_grid(
                 aabb_bottom_left,
                 aabb_top_right,
                 config.agent.occupancy_grid_cell_size,
-                config.maze_generation.width,
-                config.maze_generation.height,
+                config.maze_generation.world_width,
+                config.maze_generation.world_height,
             );
 
             for (ix, iy) in wall_indexes.iter().copied() {
@@ -339,8 +339,8 @@ pub fn update_true_grid(
             aabb_min,
             aabb_max,
             config.agent.occupancy_grid_cell_size,
-            config.maze_generation.width,
-            config.maze_generation.height,
+            config.maze_generation.world_width,
+            config.maze_generation.world_height,
         );
 
         Python::attach(|py| {
@@ -371,8 +371,8 @@ pub fn update_true_grid(
             aabb_min,
             aabb_max,
             config.agent.occupancy_grid_cell_size,
-            config.maze_generation.width,
-            config.maze_generation.height,
+            config.maze_generation.world_width,
+            config.maze_generation.world_height,
         );
 
         Python::attach(|py| {

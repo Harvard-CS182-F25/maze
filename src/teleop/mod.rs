@@ -4,8 +4,8 @@
 //! `Arrows` or `WASD` move; `Space` picks up and drops flags.
 //!
 //! The Python policy still runs every tick while teleop is enabled — a mapping agent keeps
-//! building its occupancy grid while a human drives — but `apply_actions` drops the `Action::Move`
-//! it returns so the two never fight over the agent's velocity.
+//! building its occupancy grid while a human drives — but `apply_actions` drops every policy action
+//! so the human remains in full control.
 
 use bevy::prelude::*;
 
