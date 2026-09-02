@@ -56,7 +56,6 @@ impl Plugin for OccupancyGridPlugin {
         app.add_systems(
             Startup,
             (
-                systems::setup_key_instructions,
                 systems::setup_hover_box::<PlayerGrid>,
                 systems::setup_hover_box::<TrueGrid>,
                 systems::spawn_grid_texture::<PlayerGrid>,
@@ -69,7 +68,7 @@ impl Plugin for OccupancyGridPlugin {
             (
                 systems::update_grid_texture::<PlayerGrid>,
                 systems::toggle_grid::<PlayerGrid, TrueGrid>
-                    .run_if(input_just_pressed(KeyCode::KeyO)),
+                    .run_if(input_just_pressed(KeyCode::KeyC)),
                 systems::update_grid_texture::<TrueGrid>,
                 systems::toggle_grid::<TrueGrid, PlayerGrid>
                     .run_if(input_just_pressed(KeyCode::KeyT)),

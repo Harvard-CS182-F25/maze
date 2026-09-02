@@ -47,7 +47,15 @@ impl Plugin for ScenePlugin {
             ..Default::default()
         });
 
-        app.add_systems(PreStartup, (init_wall_assets, systems::spawn_seed_and_time));
+        app.add_systems(
+            PreStartup,
+            (
+                init_wall_assets,
+                systems::initialize_sensor_rng,
+                systems::setup_hud,
+            )
+                .chain(),
+        );
         app.add_systems(
             Startup,
             (systems::setup_scene, systems::spawn_walls).in_set(StartupSets::Walls),
@@ -60,6 +68,7 @@ impl Plugin for ScenePlugin {
                 systems::update_time,
                 systems::update_true_position,
                 systems::update_mapping_error,
+                systems::update_flag_progress,
             )
                 .run_if(|config: Res<MazeConfig>| !config.headless),
         );

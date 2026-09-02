@@ -1,8 +1,7 @@
 //! Keyboard control of the agent, implemented natively so it needs no OS-level input permissions
 //! and only reacts while the game window has focus.
 //!
-//! `WASD` moves, `Space` picks up and drops flags. Movement is WASD-only because the arrow keys
-//! already pan the camera.
+//! `Arrows` or `WASD` move; `Space` picks up and drops flags.
 //!
 //! The Python policy still runs every tick while teleop is enabled — a mapping agent keeps
 //! building its occupancy grid while a human drives — but `apply_actions` drops the `Action::Move`
@@ -42,11 +41,11 @@ fn teleop_input(
     };
     let id = entity.index();
 
-    // WASD only: the arrow keys already pan the camera.
-    let right = keys.pressed(KeyCode::KeyD);
-    let left = keys.pressed(KeyCode::KeyA);
-    let up = keys.pressed(KeyCode::KeyW);
-    let down = keys.pressed(KeyCode::KeyS);
+    // Camera panning uses Shift+drag, so both conventional movement key sets are available.
+    let right = keys.pressed(KeyCode::KeyD) || keys.pressed(KeyCode::ArrowRight);
+    let left = keys.pressed(KeyCode::KeyA) || keys.pressed(KeyCode::ArrowLeft);
+    let up = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp);
+    let down = keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown);
 
     // +z points down the screen, so "up" on the keyboard is -z.
     let direction = Vec2::new(

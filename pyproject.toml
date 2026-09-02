@@ -8,6 +8,6 @@ dynamic = ["version"]
 requires-python = ">=3.10"
 
 [tool.maturin]
-bindings = "pyo3-abi3"
+bindings = "pyo3"
 module-name = "maze_core._core"
 python-source = "python"

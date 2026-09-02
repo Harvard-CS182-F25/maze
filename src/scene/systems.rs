@@ -7,12 +7,13 @@ use pyo3::prelude::*;
 use crate::{
     agent::{Agent, COLLISION_LAYER_AGENT},
     core::MazeConfig,
+    flag::{Flag, FlagCaptureCounts},
     occupancy_grid::{LOGIT_CLAMP, PlayerGrid, TrueGrid},
-    playback::PlaybackSpeed,
     python::game_state::{EntityType, SensorRng},
     scene::{
-        COLLISION_LAYER_WALL, EstimatedPositionText, MappingErrorText, TimeText, TruePositionText,
-        WALL_HEIGHT, WALL_THICKNESS, WallBundle, WallGraphicsAssets, WallSegments,
+        COLLISION_LAYER_WALL, EstimatedPositionText, FlagProgressText, MappingErrorText, TimeText,
+        TruePositionText, WALL_HEIGHT, WALL_THICKNESS, WallBundle, WallGraphicsAssets,
+        WallSegments,
     },
 };
 
@@ -150,11 +151,8 @@ fn overlapping_indexes(
     out
 }
 
-pub fn spawn_seed_and_time(
-    mut commands: Commands,
-    mut config: ResMut<MazeConfig>,
-    time: Res<Time>,
-) {
+/// Seeds sensor noise from the maze seed so a run is reproducible end to end.
+pub fn initialize_sensor_rng(mut commands: Commands, mut config: ResMut<MazeConfig>) {
     let seed = if let Some(seed) = config.maze_generation.seed {
         seed
     } else {
@@ -165,12 +163,26 @@ pub fn spawn_seed_and_time(
 
     info!("Using maze generation seed: {}", seed);
 
-    // Seed the sensor-noise RNG from the maze seed so a run is reproducible end to end.
     commands.insert_resource(SensorRng::from_seed(seed));
+}
 
+/// Spawns Maze's single in-game HUD panel, keeping status and controls together
+/// in one predictable place.
+pub fn setup_hud(mut commands: Commands, config: Res<MazeConfig>, time: Res<Time>) {
     if config.headless {
         return;
     }
+
+    let seed = config
+        .maze_generation
+        .seed
+        .expect("Sensor RNG initialization should establish a maze seed before the HUD");
+
+    let line_font = TextFont {
+        font_size: 14.0,
+        ..default()
+    };
+    let line_layout = TextLayout::new_with_justify(Justify::Right);
 
     commands
         .spawn((
@@ -178,9 +190,9 @@ pub fn spawn_seed_and_time(
                 position_type: PositionType::Absolute,
                 display: Display::Grid,
                 top: Val::Px(5.0),
-                left: Val::Px(5.0),
+                right: Val::Px(5.0),
                 padding: Val::Px(2.5).into(),
-                justify_items: JustifyItems::Start,
+                justify_items: JustifyItems::End,
                 align_items: AlignItems::Start,
                 ..default()
             },
@@ -188,72 +200,124 @@ pub fn spawn_seed_and_time(
         ))
         .with_children(|parent| {
             parent.spawn((
+                Text::new(format!("Maze Seed: {seed}")),
+                line_font.clone(),
+                line_layout,
+            ));
+
+            parent.spawn((
                 Text::new(format!("Time: {:.2}s", time.elapsed_secs())),
-                TextFont {
-                    font_size: 14.0,
-                    ..default()
-                },
-                TextLayout::new_with_justify(Justify::Right),
+                line_font.clone(),
+                line_layout,
                 TimeText,
             ));
 
             parent.spawn((
-                Text::new(format! {"Seed: {}", seed}),
-                TextFont {
-                    font_size: 14.0,
-                    ..default()
-                },
-                TextLayout::new_with_justify(Justify::Right),
-            ));
-
-            parent.spawn((
                 Text::new("True Agent Position:"),
-                TextFont {
-                    font_size: 14.0,
-                    ..default()
-                },
-                TextLayout::new_with_justify(Justify::Right),
+                line_font.clone(),
+                line_layout,
                 TruePositionText,
             ));
 
             parent.spawn((
                 Text::new("Estimated Agent Position: ()"),
-                TextFont {
-                    font_size: 14.0,
-                    ..default()
-                },
-                TextLayout::new_with_justify(Justify::Right),
+                line_font.clone(),
+                line_layout,
                 EstimatedPositionText,
             ));
 
             parent.spawn((
                 Text::new("Mapping Error:"),
-                TextFont {
-                    font_size: 14.0,
-                    ..default()
-                },
-                TextLayout::new_with_justify(Justify::Right),
+                line_font.clone(),
+                line_layout,
                 MappingErrorText,
+            ));
+
+            parent.spawn((
+                Text::new("Flags: 0/0"),
+                line_font.clone(),
+                line_layout,
+                FlagProgressText,
+            ));
+
+            parent.spawn(Node {
+                height: Val::Px(14.0),
+                ..default()
+            });
+
+            parent.spawn((
+                Text::new("+/-: Zoom In/Out"),
+                line_font.clone(),
+                line_layout,
+            ));
+            parent.spawn((
+                Text::new("Shift+Drag: Pan Camera"),
+                line_font.clone(),
+                line_layout,
+            ));
+
+            parent.spawn(Node {
+                height: Val::Px(14.0),
+                ..default()
+            });
+
+            if config.teleop {
+                parent.spawn((
+                    Text::new("Arrows/WASD: Drive Agent"),
+                    line_font.clone(),
+                    line_layout,
+                ));
+                parent.spawn((
+                    Text::new("Space: Pickup/Drop Flag"),
+                    line_font.clone(),
+                    line_layout,
+                ));
+            } else {
+                parent.spawn((
+                    Text::new("Space: Pause/Play"),
+                    line_font.clone(),
+                    line_layout,
+                ));
+                parent.spawn((
+                    Text::new("[/]: Change Speed"),
+                    line_font.clone(),
+                    line_layout,
+                ));
+            }
+
+            parent.spawn(Node {
+                height: Val::Px(14.0),
+                ..default()
+            });
+
+            parent.spawn((
+                Text::new("C: Toggle Computed Occupancy Grid"),
+                line_font.clone(),
+                line_layout,
+            ));
+            parent.spawn((
+                Text::new("T: Toggle True Occupancy Grid"),
+                line_font,
+                line_layout,
             ));
         });
 }
 
-pub fn update_time(
-    mut query: Query<&mut Text, With<TimeText>>,
-    time: Res<Time>,
-    virtual_time: Res<Time<Virtual>>,
-    speed: Res<PlaybackSpeed>,
-) {
-    let status = if virtual_time.is_paused() {
-        " [PAUSED]".to_string()
-    } else if speed.multiplier() != 1.0 {
-        format!(" [{}x]", speed.multiplier())
-    } else {
-        String::new()
-    };
-
+pub fn update_time(mut query: Query<&mut Text, With<TimeText>>, time: Res<Time>) {
     for mut text in query.iter_mut() {
-        text.0 = format!("Time: {:.2}s{status}", time.elapsed_secs());
+        text.0 = format!("Time: {:.2}s", time.elapsed_secs());
+    }
+}
+
+/// Shows live objective progress without making the open-ended simulation terminate or reset.
+pub fn update_flag_progress(
+    mut query: Query<&mut Text, With<FlagProgressText>>,
+    captures: Res<FlagCaptureCounts>,
+    flags: Query<&Flag>,
+) {
+    let total = flags.iter().count();
+    for mut text in &mut query {
+        text.0 = format!("Flags: {}/{total}", captures.0);
     }
 }
 

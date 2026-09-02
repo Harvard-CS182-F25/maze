@@ -41,8 +41,8 @@ pub struct MazeConfig {
     #[pyo3(get, set)]
     pub use_true_map: bool,
 
-    /// When true the agent is driven by the keyboard: `WASD` to move, `Space` to pick up and drop
-    /// flags. The Python policy still runs every tick — so a mapping agent keeps building its
+    /// When true the agent is driven by the keyboard: `Arrows` or `WASD` to move, `Space` to pick
+    /// up and drop flags. The Python policy still runs every tick — so a mapping agent keeps building its
     /// occupancy grid while you drive — but the `Action::Move` it returns is ignored.
     #[pyo3(get, set)]
     pub teleop: bool,

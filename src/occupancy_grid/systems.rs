@@ -17,61 +17,6 @@ use crate::{
     scene::WALL_HEIGHT,
 };
 
-pub fn setup_key_instructions(mut commands: Commands, config: Res<MazeConfig>) {
-    let teleop_enabled = config.teleop;
-    commands
-        .spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                display: Display::Grid,
-                top: Val::Px(5.0),
-                right: Val::Px(5.0),
-                padding: Val::Px(2.5).into(),
-                justify_items: JustifyItems::End,
-                align_items: AlignItems::Start,
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Text::new("O: Toggle Computed Occupancy Grid | T: Toggle True Occupancy Grid"),
-                TextFont {
-                    font_size: 14.0,
-                    ..default()
-                },
-                TextLayout::new_with_justify(Justify::Right),
-            ));
-            parent.spawn((
-                Text::new("+/-: Zoom In/Out | Arrow Keys: Pan Camera"),
-                TextFont {
-                    font_size: 14.0,
-                    ..default()
-                },
-                TextLayout::new_with_justify(Justify::Right),
-            ));
-            parent.spawn((
-                Text::new("P: Pause/Unpause | .: Cycle Speed (1x/2x/4x)"),
-                TextFont {
-                    font_size: 14.0,
-                    ..default()
-                },
-                TextLayout::new_with_justify(Justify::Right),
-            ));
-
-            if teleop_enabled {
-                parent.spawn((
-                    Text::new("WASD: Drive Agent | Space: Pickup/Drop Flag"),
-                    TextFont {
-                        font_size: 14.0,
-                        ..default()
-                    },
-                    TextLayout::new_with_justify(Justify::Right),
-                ));
-            }
-        });
-}
-
 #[allow(clippy::type_complexity)]
 pub fn toggle_grid<TOn: PyGridProvider, TOff: PyGridProvider>(
     mut vis_on: Query<&mut Visibility, (With<GridPlane<TOn>>, Without<GridPlane<TOff>>)>,

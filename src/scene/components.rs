@@ -29,6 +29,10 @@ pub struct EstimatedPositionText;
 #[reflect(Component)]
 pub struct MappingErrorText;
 
+#[derive(Debug, Clone, Copy, Default, Component, Reflect)]
+#[reflect(Component)]
+pub struct FlagProgressText;
+
 #[derive(Debug, Clone, Bundle, Default)]
 pub struct WallBundle {
     pub wall: Wall,
