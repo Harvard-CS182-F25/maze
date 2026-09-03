@@ -410,10 +410,10 @@ pub fn spawn_walls(
     Python::attach(|py| {
         let grid = true_grid.0.write().unwrap();
         let mut py_obj = grid.borrow_mut(py);
-        let width = py_obj.width as u32;
-        let height = py_obj.height as u32;
-        for index in 0..(width * height) {
-            py_obj.grid[index as usize].assignment = Some(EntityType::Empty);
+        let columns = py_obj.columns as u32;
+        let rows = py_obj.rows as u32;
+        for index in 0..(columns * rows) {
+            py_obj.grid[index as usize].assignment = Some(EntityType::Free);
             py_obj.grid[index as usize].logit_free = LOGIT_CLAMP;
             py_obj.grid[index as usize].logit_wall = -LOGIT_CLAMP;
             py_obj.grid[index as usize].logit_flag = -LOGIT_CLAMP;
@@ -446,14 +446,14 @@ pub fn spawn_walls(
         Python::attach(|py| {
             let grid = true_grid.0.write().unwrap();
             let mut py_obj = grid.borrow_mut(py);
-            let width = py_obj.width as u32;
+            let columns = py_obj.columns as u32;
 
             for (ix, iy) in wall_indexes.iter().copied() {
-                py_obj.grid[(ix + iy * width) as usize].assignment = Some(EntityType::Wall);
-                py_obj.grid[(ix + iy * width) as usize].logit_free = -LOGIT_CLAMP;
-                py_obj.grid[(ix + iy * width) as usize].logit_wall = LOGIT_CLAMP;
-                py_obj.grid[(ix + iy * width) as usize].logit_flag = -LOGIT_CLAMP;
-                py_obj.grid[(ix + iy * width) as usize].logit_capture_point = -LOGIT_CLAMP;
+                py_obj.grid[(ix + iy * columns) as usize].assignment = Some(EntityType::Wall);
+                py_obj.grid[(ix + iy * columns) as usize].logit_free = -LOGIT_CLAMP;
+                py_obj.grid[(ix + iy * columns) as usize].logit_wall = LOGIT_CLAMP;
+                py_obj.grid[(ix + iy * columns) as usize].logit_flag = -LOGIT_CLAMP;
+                py_obj.grid[(ix + iy * columns) as usize].logit_capture_point = -LOGIT_CLAMP;
             }
         });
 

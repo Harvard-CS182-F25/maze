@@ -12,14 +12,14 @@ class AgentProtocol(Protocol):
     def get_action(self, game_state: GameState, occupancy_grid: OccupancyGrid, dt: float) -> Action:
         """Called once per policy tick.
 
-        `occupancy_grid` is the grid the agent writes its map into, and `dt` is the number of
-        simulated seconds since the previous call — so it is zero while the game is paused and
-        scales with the playback speed.
+        `occupancy_grid` is the grid the agent writes its map into. `dt` is simulated time since
+        the previous call, normally `1 / policy_hz`. Pausing stops calls; a slow policy receives a
+        larger `dt`.
         """
         ...
 
     @property
-    def position(self) -> Position:
+    def estimated_position(self) -> Position:
         """The agent's own estimate of where it is.
 
         Optional: agents that do not estimate their position may leave this unimplemented, in which

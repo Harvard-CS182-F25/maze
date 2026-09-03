@@ -200,25 +200,25 @@ pub struct OccupancyGrid {
     #[pyo3(get)]
     pub cell_size: f32,
 
-    /// Number of cells in the x direction
+    /// Number of columns
     #[pyo3(get)]
-    pub width: usize,
+    pub columns: usize,
 
-    /// Number of cells in the y direction
+    /// Number of rows
     #[pyo3(get)]
-    pub height: usize,
+    pub rows: usize,
 }
 
 #[gen_stub_pymethods]
 #[pymethods]
 impl OccupancyGrid {
     #[new]
-    pub fn new(width: usize, height: usize, cell_size: f32) -> Self {
+    pub fn new(columns: usize, rows: usize, cell_size: f32) -> Self {
         Self {
-            grid: vec![OccupancyGridEntry::default(); width * height],
+            grid: vec![OccupancyGridEntry::default(); columns * rows],
             cell_size,
-            width,
-            height,
+            columns,
+            rows,
         }
     }
 
@@ -229,22 +229,22 @@ impl OccupancyGrid {
     ) -> PyResult<OccupancyCellView> {
         let (x, y): (usize, usize) = key.extract(py)?;
 
-        if x >= slf.width || y >= slf.height {
+        if x >= slf.columns || y >= slf.rows {
             return Err(PyErr::new::<pyo3::exceptions::PyIndexError, _>(
                 "Index out of bounds",
             ));
         }
 
-        let index = x + slf.width * y;
+        let index = x + slf.columns * y;
         let grid = slf.into_pyobject(py)?.unbind();
 
         Ok(OccupancyCellView { grid, index })
     }
 
     #[getter]
-    /// Returns (width, height)
+    /// Returns (columns, rows)
     pub fn shape(&self) -> (usize, usize) {
-        (self.width, self.height)
+        (self.columns, self.rows)
     }
 }
 
@@ -275,20 +275,20 @@ impl OccupancyGridView {
     }
 
     #[getter]
-    pub fn width(&self) -> PyResult<usize> {
+    pub fn columns(&self) -> PyResult<usize> {
         Python::attach(|py| {
             let grid = self.inner.read().unwrap();
             let grid_ref = grid.borrow(py);
-            Ok(grid_ref.width)
+            Ok(grid_ref.columns)
         })
     }
 
     #[getter]
-    pub fn height(&self) -> PyResult<usize> {
+    pub fn rows(&self) -> PyResult<usize> {
         Python::attach(|py| {
             let grid = self.inner.read().unwrap();
             let grid_ref = grid.borrow(py);
-            Ok(grid_ref.height)
+            Ok(grid_ref.rows)
         })
     }
 

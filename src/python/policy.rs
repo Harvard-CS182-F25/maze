@@ -60,7 +60,7 @@ struct Bridge {
 struct PolicyBridge {
     pub tx_state: Sender<PolicyRequest>,
     pub rx_action: Receiver<Action>,
-    pub rx_position: Receiver<(f32, f32)>,
+    pub rx_estimated_position: Receiver<(f32, f32)>,
     /// Shares the `PolicyErrorSlot` resource, so the worker thread can report why it stopped.
     pub error: PolicyErrorSlot,
 }
@@ -148,15 +148,16 @@ impl PolicyBridge {
 
         let (tx_state, rx_state) = crossbeam_channel::bounded::<PolicyRequest>(capacity);
         let (tx_action, rx_action) = crossbeam_channel::bounded::<Action>(capacity);
-        let (tx_position, rx_position) = crossbeam_channel::bounded::<(f32, f32)>(capacity);
+        let (tx_estimated_position, rx_estimated_position) =
+            crossbeam_channel::bounded::<(f32, f32)>(capacity);
 
         let worker_error = error.clone();
 
         std::thread::spawn(move || {
-            // The `position` attribute is optional: an agent that does not estimate its own
+            // The `estimated_position` attribute is optional: an agent that does not estimate its own
             // position (a teleop shim, say) simply gets no ghost marker. Warn once rather than
             // every tick.
-            let mut warned_missing_position = false;
+            let mut warned_missing_estimated_position = false;
 
             while let Ok((state, grid, dt)) = rx_state.recv() {
                 let action_and_position =
@@ -167,29 +168,29 @@ impl PolicyBridge {
                             .call_method(py, "get_action", (state, grid, dt), None)?
                             .extract(py)?;
 
-                        let position = match policy.getattr(py, "position") {
+                        let estimated_position = match policy.getattr(py, "estimated_position") {
                             Ok(position) => position.extract::<(f32, f32)>(py).ok(),
                             Err(_) => None,
                         };
 
-                        Ok((action, position))
+                        Ok((action, estimated_position))
                     });
 
                 match action_and_position {
-                    Ok((action, position)) => {
-                        if !warned_missing_position && position.is_none() {
-                            warned_missing_position = true;
+                    Ok((action, estimated_position)) => {
+                        if !warned_missing_estimated_position && estimated_position.is_none() {
+                            warned_missing_estimated_position = true;
                             eprintln!(
-                                "Policy has no usable `position` attribute; skipping the estimated-position marker"
+                                "Policy has no usable `estimated_position` attribute; skipping the estimated-position marker"
                             );
                         }
 
                         if let Err(TrySendError::Disconnected(_)) = tx_action.try_send(action) {
                             break; // main thread has exited
                         }
-                        if let Some(position) = position
+                        if let Some(estimated_position) = estimated_position
                             && let Err(TrySendError::Disconnected(_)) =
-                                tx_position.try_send(position)
+                                tx_estimated_position.try_send(estimated_position)
                         {
                             break;
                         }
@@ -208,7 +209,7 @@ impl PolicyBridge {
         Ok(PolicyBridge {
             tx_state,
             rx_action,
-            rx_position,
+            rx_estimated_position,
             error,
         })
     }
@@ -267,7 +268,7 @@ fn send_game_states(
     let noisy_state = GameState {
         agent: noisy_agent_state,
         total_flags: flags.iter().count() as u32,
-        collected_flags: scores.0,
+        captured_flags: scores.0,
         world_width: config.maze_generation.world_width,
         world_height: config.maze_generation.world_height,
     };
@@ -275,7 +276,7 @@ fn send_game_states(
     let true_state = GameState {
         agent: true_agent_state,
         total_flags: flags.iter().count() as u32,
-        collected_flags: scores.0,
+        captured_flags: scores.0,
         world_width: config.maze_generation.world_width,
         world_height: config.maze_generation.world_height,
     };
@@ -380,23 +381,23 @@ fn apply_actions(
     }
 
     match action {
-        Action::Move { id, velocity } => {
-            if !check_agent_exists(id, agents) {
+        Action::Move { agent_id, velocity } => {
+            if !check_agent_exists(agent_id, agents) {
                 return;
             }
-            movement_event_writer.write(MovementMessage::TranslateById(id, velocity.into()));
+            movement_event_writer.write(MovementMessage::TranslateById(agent_id, velocity.into()));
         }
-        Action::PickupFlag { id } => {
-            if !check_agent_exists(id, agents) {
+        Action::PickupFlag { agent_id } => {
+            if !check_agent_exists(agent_id, agents) {
                 return;
             }
-            pickup_event_writer.write(FlagPickupMessage { agent_id: id });
+            pickup_event_writer.write(FlagPickupMessage { agent_id });
         }
-        Action::DropFlag { id } => {
-            if !check_agent_exists(id, agents) {
+        Action::DropFlag { agent_id } => {
+            if !check_agent_exists(agent_id, agents) {
                 return;
             }
-            drop_event_writer.write(FlagDropMessage { agent_id: id });
+            drop_event_writer.write(FlagDropMessage { agent_id });
         }
     }
 }
@@ -422,7 +423,7 @@ fn update_estimated_position_text(
     };
 
     let mut latest: Option<(f32, f32)> = None;
-    while let Ok(position) = bridge.agent_bridge.rx_position.try_recv() {
+    while let Ok(position) = bridge.agent_bridge.rx_estimated_position.try_recv() {
         latest = Some(position);
     }
     let Some((x, y)) = latest else {
@@ -461,6 +462,6 @@ fn shutdown_workers_on_exit(
     bridge.take();
 }
 
-fn check_agent_exists(id: u32, agents: Query<(Entity, &Agent)>) -> bool {
-    agents.iter().any(|(e, _a)| e.index() == id)
+fn check_agent_exists(agent_id: u32, agents: Query<(Entity, &Agent)>) -> bool {
+    agents.iter().any(|(e, _a)| e.index() == agent_id)
 }

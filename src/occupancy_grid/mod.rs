@@ -16,10 +16,10 @@ pub struct OccupancyGridPlugin {
 
 impl Plugin for OccupancyGridPlugin {
     fn build(&self, app: &mut App) {
-        let width = (self.config.maze_generation.world_width
+        let columns = (self.config.maze_generation.world_width
             / self.config.agent.occupancy_grid_cell_size)
             .round() as usize;
-        let height = (self.config.maze_generation.world_height
+        let rows = (self.config.maze_generation.world_height
             / self.config.agent.occupancy_grid_cell_size)
             .round() as usize;
 
@@ -27,7 +27,7 @@ impl Plugin for OccupancyGridPlugin {
             let true_grid = Python::attach(|py| {
                 Py::new(
                     py,
-                    OccupancyGrid::new(width, height, self.config.agent.occupancy_grid_cell_size),
+                    OccupancyGrid::new(columns, rows, self.config.agent.occupancy_grid_cell_size),
                 )
             })
             .expect("Failed to create OccupancyGrid");
@@ -39,7 +39,7 @@ impl Plugin for OccupancyGridPlugin {
             let player_grid = Python::attach(|py| {
                 Py::new(
                     py,
-                    OccupancyGrid::new(width, height, self.config.agent.occupancy_grid_cell_size),
+                    OccupancyGrid::new(columns, rows, self.config.agent.occupancy_grid_cell_size),
                 )
             })
             .expect("Failed to create OccupancyGrid");

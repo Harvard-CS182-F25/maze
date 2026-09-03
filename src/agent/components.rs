@@ -51,9 +51,9 @@ impl RayCasters {
 #[gen_stub_pyclass_complex_enum]
 #[pyclass(name = "Action", eq)]
 pub enum Action {
-    Move { id: u32, velocity: (f32, f32) },
-    PickupFlag { id: u32 },
-    DropFlag { id: u32 },
+    Move { agent_id: u32, velocity: (f32, f32) },
+    PickupFlag { agent_id: u32 },
+    DropFlag { agent_id: u32 },
 }
 
 #[derive(Debug, Clone, Bundle)]

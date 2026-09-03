@@ -27,9 +27,9 @@ pub fn spawn_agents(
             .iter()
             .enumerate()
             .filter_map(|(i, cell)| {
-                if cell.assignment == Some(EntityType::Empty) {
-                    let grid_col = i as u32 % py_obj.width as u32;
-                    let grid_row = i as u32 / py_obj.width as u32;
+                if cell.assignment == Some(EntityType::Free) {
+                    let grid_col = i as u32 % py_obj.columns as u32;
+                    let grid_row = i as u32 / py_obj.columns as u32;
                     let x = (grid_col as f32) * config.agent.occupancy_grid_cell_size
                         + config.agent.occupancy_grid_cell_size / 2.0
                         - config.maze_generation.world_width / 2.0;
@@ -65,7 +65,7 @@ pub fn spawn_agents(
         .spawn(AgentBundle::new(
             &config.agent.name,
             Vec3::new(position.0, 0.0, position.1),
-            config.agent.speed,
+            config.agent.max_speed,
             AGENT_RAYCAST_MAX_DISTANCE,
         ))
         .id();

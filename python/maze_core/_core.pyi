@@ -7,24 +7,24 @@ from enum import Enum
 
 class Action:
     class Move(Action):
-        __match_args__ = ("id", "velocity",)
+        __match_args__ = ("agent_id", "velocity",)
         @property
-        def id(self) -> builtins.int: ...
+        def agent_id(self) -> builtins.int: ...
         @property
         def velocity(self) -> tuple[builtins.float, builtins.float]: ...
-        def __new__(cls, id:builtins.int, velocity:tuple[builtins.float, builtins.float]) -> Action.Move: ...
+        def __new__(cls, agent_id:builtins.int, velocity:tuple[builtins.float, builtins.float]) -> Action.Move: ...
     
     class PickupFlag(Action):
-        __match_args__ = ("id",)
+        __match_args__ = ("agent_id",)
         @property
-        def id(self) -> builtins.int: ...
-        def __new__(cls, id:builtins.int) -> Action.PickupFlag: ...
+        def agent_id(self) -> builtins.int: ...
+        def __new__(cls, agent_id:builtins.int) -> Action.PickupFlag: ...
     
     class DropFlag(Action):
-        __match_args__ = ("id",)
+        __match_args__ = ("agent_id",)
         @property
-        def id(self) -> builtins.int: ...
-        def __new__(cls, id:builtins.int) -> Action.DropFlag: ...
+        def agent_id(self) -> builtins.int: ...
+        def __new__(cls, agent_id:builtins.int) -> Action.DropFlag: ...
     
     ...
 
@@ -34,17 +34,17 @@ class AgentConfig:
     @name.setter
     def name(self, value: builtins.str) -> None: ...
     @property
-    def speed(self) -> builtins.float: ...
-    @speed.setter
-    def speed(self, value: builtins.float) -> None: ...
+    def max_speed(self) -> builtins.float: ...
+    @max_speed.setter
+    def max_speed(self, value: builtins.float) -> None: ...
     @property
     def policy_hz(self) -> builtins.float: ...
     @policy_hz.setter
     def policy_hz(self, value: builtins.float) -> None: ...
     @property
-    def odometry_stddev(self) -> builtins.float: ...
-    @odometry_stddev.setter
-    def odometry_stddev(self, value: builtins.float) -> None: ...
+    def position_stddev(self) -> builtins.float: ...
+    @position_stddev.setter
+    def position_stddev(self, value: builtins.float) -> None: ...
     @property
     def range_stddev(self) -> builtins.float: ...
     @range_stddev.setter
@@ -76,7 +76,7 @@ class AgentState:
         The results of the agent's raycasts.
         """
     @property
-    def flag(self) -> typing.Optional[builtins.int]:
+    def flag_id(self) -> typing.Optional[builtins.int]:
         r"""
         The entity ID of the flag the agent is currently carrying, if any.
         """
@@ -121,7 +121,7 @@ class GameResult:
         `(wrong, total)` cell counts behind `final_mapping_error`.
         """
     @property
-    def milestones(self) -> builtins.list[tuple[builtins.float, typing.Optional[builtins.float]]]:
+    def mapping_error_milestones(self) -> builtins.list[tuple[builtins.float, typing.Optional[builtins.float]]]:
         r"""
         For each requested threshold, the first simulated time the mapping error dropped to or
         below it, or `None` if it never did. In the order the thresholds were given.
@@ -136,7 +136,7 @@ class GameResult:
     @property
     def total_flags(self) -> builtins.int: ...
     @property
-    def seed(self) -> builtins.int:
+    def maze_seed(self) -> builtins.int:
         r"""
         The maze seed actually used. Worth recording when the config left `seed` unset, since it is
         what makes a run reproducible.
@@ -161,7 +161,7 @@ class GameState:
     @property
     def total_flags(self) -> builtins.int: ...
     @property
-    def collected_flags(self) -> builtins.int: ...
+    def captured_flags(self) -> builtins.int: ...
     @property
     def world_width(self) -> builtins.float: ...
     @property
@@ -174,16 +174,9 @@ class HitInfo:
         The angle of the raycast in radians, relative to the +x axis (right on the screen). Remember, +y points down on the screen!
         """
     @property
-    def hit(self) -> EntityType:
+    def endpoint_type(self) -> EntityType:
         r"""
         The type of entity that was hit by the raycast.
-        """
-    @property
-    def did_hit(self) -> builtins.bool:
-        r"""
-        Whether the ray actually hit something, as opposed to travelling the full `max_distance`
-        without hitting anything. Prefer this over comparing `distance` to `max_distance`: this
-        flag is computed from the noise-free raycast, so range noise can never flip it.
         """
     @property
     def distance(self) -> builtins.float:
@@ -196,7 +189,7 @@ class HitInfo:
         The maximum distance the raycast could travel.
         """
     @property
-    def hit_confidence(self) -> SensorConfidence:
+    def endpoint_confidence(self) -> SensorConfidence:
         r"""
         The confidence (probability of each class) of the thing that the ray hit.
         If nothing was hit, this will be the confidence of an empty space.
@@ -273,21 +266,21 @@ class OccupancyGrid:
         Size of each cell in world units
         """
     @property
-    def width(self) -> builtins.int:
+    def columns(self) -> builtins.int:
         r"""
-        Number of cells in the x direction
+        Number of columns
         """
     @property
-    def height(self) -> builtins.int:
+    def rows(self) -> builtins.int:
         r"""
-        Number of cells in the y direction
+        Number of rows
         """
     @property
     def shape(self) -> tuple[builtins.int, builtins.int]:
         r"""
-        Returns (width, height)
+        Returns (columns, rows)
         """
-    def __new__(cls, width:builtins.int, height:builtins.int, cell_size:builtins.float) -> OccupancyGrid: ...
+    def __new__(cls, columns:builtins.int, rows:builtins.int, cell_size:builtins.float) -> OccupancyGrid: ...
     def __getitem__(self, key:typing.Any) -> OccupancyGridEntry: ...
 
 class OccupancyGridEntry:
@@ -336,35 +329,35 @@ class OccupancyGridView:
     @property
     def cell_size(self) -> builtins.float: ...
     @property
-    def width(self) -> builtins.int: ...
+    def columns(self) -> builtins.int: ...
     @property
-    def height(self) -> builtins.int: ...
+    def rows(self) -> builtins.int: ...
     @property
     def shape(self) -> tuple[builtins.int, builtins.int]: ...
     def __getitem__(self, key:typing.Any) -> OccupancyGridEntry: ...
 
 class SensorConfidence:
     @property
-    def p_free(self) -> builtins.float:
+    def conf_free(self) -> builtins.float:
         r"""
-        Probability of being free space
+        Confidence in free space
         """
     @property
-    def p_wall(self) -> builtins.float:
+    def conf_wall(self) -> builtins.float:
         r"""
-        Probability of being a wall
+        Confidence in a wall
         """
     @property
-    def p_flag(self) -> builtins.float:
+    def conf_flag(self) -> builtins.float:
         r"""
-        Probability of being a flag
+        Confidence in a flag
         """
     @property
-    def p_capture_point(self) -> builtins.float:
+    def conf_capture_point(self) -> builtins.float:
         r"""
-        Probability of being a capture point
+        Confidence in a capture point
         """
-    def __new__(cls, p_free:builtins.float, p_wall:builtins.float, p_flag:builtins.float, p_capture_point:builtins.float) -> SensorConfidence: ...
+    def __new__(cls, conf_free:builtins.float, conf_wall:builtins.float, conf_flag:builtins.float, conf_capture_point:builtins.float) -> SensorConfidence: ...
     def as_tuple(self) -> tuple[builtins.float, builtins.float, builtins.float, builtins.float]: ...
 
 class StateQueue:
@@ -387,8 +380,8 @@ class EntityType(Enum):
     r"""
     The type of entity that was hit by a raycast. Note, that "Unknown" should not occur.
     """
+    Free = ...
     Wall = ...
-    Empty = ...
     Flag = ...
     CapturePoint = ...
     Unknown = ...

@@ -44,8 +44,8 @@ pub fn spawn_grid_texture<T: PyGridProvider>(
     let (width, height, pixels) = Python::attach(|py| {
         let py_obj = grid_res.arc().read().unwrap().clone_ref(py);
         let grid_ref = py_obj.borrow(py);
-        let w = grid_ref.width;
-        let h = grid_ref.height;
+        let w = grid_ref.columns;
+        let h = grid_ref.rows;
         let pix = encode_grid_to_rgba(&grid_ref);
         (w, h, pix)
     });
@@ -102,8 +102,8 @@ pub fn update_grid_texture<T: PyGridProvider>(
     let (w, h, pixels) = Python::attach(|py| {
         let py_obj = grid.arc().read().unwrap().clone_ref(py);
         let grid_ref = py_obj.borrow(py);
-        let w = grid_ref.width;
-        let h = grid_ref.height;
+        let w = grid_ref.columns;
+        let h = grid_ref.rows;
         let pix = encode_grid_to_rgba(&grid_ref);
         (w, h, pix)
     });
@@ -147,18 +147,18 @@ pub fn update_grid_texture<T: PyGridProvider>(
 }
 
 fn encode_grid_to_rgba(grid: &OccupancyGrid) -> Vec<u8> {
-    let width = grid.width;
-    let height = grid.height;
-    let mut buffer = vec![0u8; width * height * 4];
+    let columns = grid.columns;
+    let rows = grid.rows;
+    let mut buffer = vec![0u8; columns * rows * 4];
 
-    for y in 0..height {
-        for x in 0..width {
-            let idx = y * width + x;
+    for y in 0..rows {
+        for x in 0..columns {
+            let idx = y * columns + x;
             let entry = grid.grid[idx];
 
             let (r, g, b, a) = match entry.assignment {
                 Some(EntityType::Wall) => (0u8, 0u8, 0u8, 200u8),
-                Some(EntityType::Empty) => (0u8, 0u8, 0u8, 0u8),
+                Some(EntityType::Free) => (0u8, 0u8, 0u8, 0u8),
                 Some(EntityType::Flag) => (219u8, 112u8, 147u8, 200u8),
                 Some(EntityType::CapturePoint) => (199u8, 21u8, 133u8, 200u8),
                 _ => (127u8, 127u8, 127u8, 100u8),
@@ -233,12 +233,12 @@ pub fn cursor_to_grid_cell<T: PyGridProvider>(
     let inv = plane_gt.to_matrix().inverse();
     let local = inv.transform_point3(hit); // local.y should be ~0
 
-    // Map local.x/local.z to [0, width)×[0, height)
+    // Map local.x/local.z to [0, columns)×[0, rows)
     let world_w = config.maze_generation.world_width;
     let world_h = config.maze_generation.world_height;
     let cell = config.agent.occupancy_grid_cell_size;
-    let grid_w = (world_w / cell).round() as u32;
-    let grid_h = (world_h / cell).round() as u32;
+    let grid_columns = (world_w / cell).round() as u32;
+    let grid_rows = (world_h / cell).round() as u32;
 
     // Plane is centered at (0, WALL_HEIGHT, 0) with extents ±world_w/2, ±world_h/2
     let u = (local.x + world_w * 0.5) / cell; // column (x)
@@ -248,12 +248,12 @@ pub fn cursor_to_grid_cell<T: PyGridProvider>(
     let row = v.floor() as i32;
 
     // Inside?
-    if col < 0 || row < 0 || col as u32 >= grid_w || row as u32 >= grid_h {
+    if col < 0 || row < 0 || col as u32 >= grid_columns || row as u32 >= grid_rows {
         *hover = HoverCell::default();
         return;
     }
 
-    // If your image ends up vertically flipped, swap to: let row = (grid_h as i32 - 1) - row;
+    // If your image ends up vertically flipped, swap to: let row = (grid_rows as i32 - 1) - row;
     hover.cell = Some(UVec2::new(col as u32, row as u32));
     hover.world_hit = Some(hit);
 }
@@ -349,7 +349,7 @@ pub fn update_hover_box<T: PyGridProvider>(
     let (logits, probabilities, assignment) = Python::attach(|py| {
         let py_obj = grid.arc().read().unwrap().clone_ref(py);
         let grid_ref = py_obj.borrow(py);
-        let idx = (cell.y * grid_ref.width as u32 + cell.x) as usize;
+        let idx = (cell.y * grid_ref.columns as u32 + cell.x) as usize;
         if idx >= grid_ref.grid.len() {
             // return default-shaped values: logits tuple, probabilities tuple, no assignment
             return ((-1.0, -1.0, -1.0, -1.0), (-1.0, -1.0, -1.0, -1.0), None);

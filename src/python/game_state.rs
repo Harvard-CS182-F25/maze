@@ -26,7 +26,7 @@ pub struct GameState {
     #[pyo3(get)]
     pub total_flags: u32,
     #[pyo3(get)]
-    pub collected_flags: u32,
+    pub captured_flags: u32,
     #[pyo3(get)]
     pub world_width: f32,
     #[pyo3(get)]
@@ -55,7 +55,7 @@ pub struct AgentState {
 
     /// The entity ID of the flag the agent is currently carrying, if any.
     #[pyo3(get)]
-    pub flag: Option<u32>,
+    pub flag_id: Option<u32>,
 
     /// The maximum linear speed of the agent.
     #[pyo3(get)]
@@ -67,8 +67,8 @@ pub struct AgentState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
 /// The type of entity that was hit by a raycast. Note, that "Unknown" should not occur.
 pub enum EntityType {
+    Free,
     Wall,
-    Empty,
     Flag,
     CapturePoint,
     Unknown,
@@ -77,8 +77,8 @@ pub enum EntityType {
 impl std::fmt::Display for EntityType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
+            EntityType::Free => "Free",
             EntityType::Wall => "Wall",
-            EntityType::Empty => "Empty",
             EntityType::Flag => "Flag",
             EntityType::CapturePoint => "CapturePoint",
             EntityType::Unknown => "Unknown",
@@ -97,13 +97,7 @@ pub struct HitInfo {
 
     /// The type of entity that was hit by the raycast.
     #[pyo3(get)]
-    pub hit: EntityType,
-
-    /// Whether the ray actually hit something, as opposed to travelling the full `max_distance`
-    /// without hitting anything. Prefer this over comparing `distance` to `max_distance`: this
-    /// flag is computed from the noise-free raycast, so range noise can never flip it.
-    #[pyo3(get)]
-    pub did_hit: bool,
+    pub endpoint_type: EntityType,
 
     /// How far the ray traveled before hitting something, or the max distance if nothing was hit.
     #[pyo3(get)]
@@ -116,7 +110,7 @@ pub struct HitInfo {
     /// The confidence (probability of each class) of the thing that the ray hit.
     /// If nothing was hit, this will be the confidence of an empty space.
     #[pyo3(get)]
-    pub hit_confidence: SensorConfidence,
+    pub endpoint_confidence: SensorConfidence,
 
     /// The confidence (probability of each class) of the cells that the ray passed through of being free space.
     #[pyo3(get)]
@@ -127,48 +121,53 @@ pub struct HitInfo {
 #[pyclass(name = "SensorConfidence")]
 #[derive(Clone, Debug, PartialEq)]
 pub struct SensorConfidence {
-    /// Probability of being free space
+    /// Confidence in free space
     #[pyo3(get)]
-    pub p_free: f32,
+    pub conf_free: f32,
 
-    /// Probability of being a wall
+    /// Confidence in a wall
     #[pyo3(get)]
-    pub p_wall: f32,
+    pub conf_wall: f32,
 
-    /// Probability of being a flag
+    /// Confidence in a flag
     #[pyo3(get)]
-    pub p_flag: f32,
+    pub conf_flag: f32,
 
-    /// Probability of being a capture point
+    /// Confidence in a capture point
     #[pyo3(get)]
-    pub p_capture_point: f32,
+    pub conf_capture_point: f32,
 }
 
 #[gen_stub_pymethods]
 #[pymethods]
 impl SensorConfidence {
     #[new]
-    pub fn new(p_free: f32, p_wall: f32, p_flag: f32, p_capture_point: f32) -> Self {
+    pub fn new(conf_free: f32, conf_wall: f32, conf_flag: f32, conf_capture_point: f32) -> Self {
         Self {
-            p_free,
-            p_wall,
-            p_flag,
-            p_capture_point,
+            conf_free,
+            conf_wall,
+            conf_flag,
+            conf_capture_point,
         }
     }
 
     pub fn as_tuple(&self) -> (f32, f32, f32, f32) {
-        (self.p_free, self.p_wall, self.p_flag, self.p_capture_point)
+        (
+            self.conf_free,
+            self.conf_wall,
+            self.conf_flag,
+            self.conf_capture_point,
+        )
     }
 }
 
 impl From<[f32; 4]> for SensorConfidence {
     fn from(conf: [f32; 4]) -> Self {
         Self {
-            p_free: conf[0],
-            p_wall: conf[1],
-            p_flag: conf[2],
-            p_capture_point: conf[3],
+            conf_free: conf[0],
+            conf_wall: conf[1],
+            conf_flag: conf[2],
+            conf_capture_point: conf[3],
         }
     }
 }
@@ -177,8 +176,8 @@ impl std::fmt::Display for HitInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "HitInfo(hit={:?}, did_hit={}, distance={}, theta={})",
-            self.hit, self.did_hit, self.distance, self.theta
+            "HitInfo(endpoint_type={:?}, distance={}, theta={})",
+            self.endpoint_type, self.distance, self.theta
         )
     }
 }
@@ -212,7 +211,7 @@ fn classify(
 fn confidence_by_entity_type(entity_type: EntityType) -> SensorConfidence {
     match entity_type {
         EntityType::Wall => [0.05, 0.90, 0.05, 0.05].into(),
-        EntityType::Empty => [0.85, 0.15, 0.20, 0.20].into(),
+        EntityType::Free => [0.85, 0.15, 0.20, 0.20].into(),
         EntityType::Flag => [0.05, 0.10, 0.85, 0.10].into(),
         EntityType::CapturePoint => [0.05, 0.10, 0.10, 0.85].into(),
         EntityType::Unknown => [0.25, 0.25, 0.25, 0.25].into(),
@@ -277,7 +276,7 @@ pub fn collect_agent_state(
 
             let entity_type = hit
                 .map(|hit| classify(hit.entity, kinds))
-                .unwrap_or(EntityType::Empty);
+                .unwrap_or(EntityType::Free);
 
             let distance = hit
                 .map(|hit| hit.distance)
@@ -285,18 +284,17 @@ pub fn collect_agent_state(
 
             HitInfo {
                 theta: raycaster.direction.z.atan2(raycaster.direction.x),
-                hit: entity_type,
-                did_hit: hit.is_some(),
+                endpoint_type: entity_type,
                 distance,
                 max_distance: raycaster.max_distance,
-                hit_confidence: confidence_by_entity_type(entity_type),
+                endpoint_confidence: confidence_by_entity_type(entity_type),
                 free_confidence: [0.9, 0.01, 0.045, 0.045].into(),
             }
         })
         .collect::<Vec<_>>();
     raycasts.sort_by(|a, b| a.theta.partial_cmp(&b.theta).unwrap());
 
-    let odometry_noise_distribution = Normal::new(0.0, config.agent.odometry_stddev)
+    let position_noise_distribution = Normal::new(0.0, config.agent.position_stddev)
         .expect("Normal distribution should be valid");
     let range_noise_distribution =
         Normal::new(0.0, config.agent.range_stddev).expect("Normal distribution should be valid");
@@ -304,17 +302,17 @@ pub fn collect_agent_state(
     let true_agent_state = AgentState {
         id: entity.index(),
         position: agent_transform.translation.xz().into(),
-        position_stddev: config.agent.odometry_stddev,
+        position_stddev: config.agent.position_stddev,
         raycasts,
-        flag: flag.map(|f| f.index()),
+        flag_id: flag.map(|f| f.index()),
         max_speed: max_speed.0,
     };
 
     let rng = &mut sensor_rng.0;
     let noisy_agent_state = AgentState {
         position: (
-            agent_transform.translation.x + odometry_noise_distribution.sample(rng),
-            agent_transform.translation.z + odometry_noise_distribution.sample(rng),
+            agent_transform.translation.x + position_noise_distribution.sample(rng),
+            agent_transform.translation.z + position_noise_distribution.sample(rng),
         ),
         raycasts: true_agent_state
             .raycasts

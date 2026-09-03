@@ -180,7 +180,7 @@ fn run_headless(
     let (tx_result, rx_result) = crossbeam_channel::bounded::<GameResult>(1);
     let metrics_config = MetricsConfig {
         max_seconds,
-        milestones: mapping_error_milestones,
+        mapping_error_milestones,
         stop_on_all_flags_captured,
         result_sender: tx_result,
     };

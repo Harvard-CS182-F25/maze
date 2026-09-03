@@ -79,8 +79,8 @@ fn pick_positions_for(
     count: usize,
     place_as: EntityType, // Flag or CapturePoint
 ) -> Vec<(f32, f32)> {
-    let w = py_grid.width as i32;
-    let h = py_grid.height as i32;
+    let w = py_grid.columns as i32;
+    let h = py_grid.rows as i32;
     let n = (w * h) as usize;
     let cell_size = config.agent.occupancy_grid_cell_size;
 
@@ -105,7 +105,7 @@ fn pick_positions_for(
         .grid
         .iter()
         .enumerate()
-        .filter(|(i, cell)| cell.assignment == Some(EntityType::Empty) && !blocked[*i])
+        .filter(|(i, cell)| cell.assignment == Some(EntityType::Free) && !blocked[*i])
         .map(|(i, _)| i)
         .collect();
 
@@ -142,8 +142,8 @@ fn pick_positions_for(
     let mut out = Vec::with_capacity(picked.len());
     for &i in &picked {
         py_grid.grid[i].assignment = Some(place_as);
-        let col = (i as u32) % (py_grid.width as u32);
-        let row = (i as u32) / (py_grid.width as u32);
+        let col = (i as u32) % (py_grid.columns as u32);
+        let row = (i as u32) / (py_grid.columns as u32);
         out.push(grid_to_world_xy(col, row, cell_size, world_w, world_h));
     }
 
@@ -285,11 +285,11 @@ pub fn update_true_grid(
     Python::attach(|py| {
         let grid = true_grid.0.write().unwrap();
         let mut py_obj = grid.borrow_mut(py);
-        let width = py_obj.width as u32;
+        let columns = py_obj.columns as u32;
 
         for entry in &mut py_obj.grid {
             if entry.assignment != Some(EntityType::Wall) {
-                entry.assignment = Some(EntityType::Empty);
+                entry.assignment = Some(EntityType::Free);
                 entry.logit_free = LOGIT_CLAMP;
                 entry.logit_wall = -LOGIT_CLAMP;
                 entry.logit_flag = -LOGIT_CLAMP;
@@ -317,11 +317,11 @@ pub fn update_true_grid(
             );
 
             for (ix, iy) in wall_indexes.iter().copied() {
-                py_obj.grid[(ix + iy * width) as usize].assignment = Some(EntityType::Wall);
-                py_obj.grid[(ix + iy * width) as usize].logit_free = -LOGIT_CLAMP;
-                py_obj.grid[(ix + iy * width) as usize].logit_wall = LOGIT_CLAMP;
-                py_obj.grid[(ix + iy * width) as usize].logit_flag = -LOGIT_CLAMP;
-                py_obj.grid[(ix + iy * width) as usize].logit_capture_point = -LOGIT_CLAMP;
+                py_obj.grid[(ix + iy * columns) as usize].assignment = Some(EntityType::Wall);
+                py_obj.grid[(ix + iy * columns) as usize].logit_free = -LOGIT_CLAMP;
+                py_obj.grid[(ix + iy * columns) as usize].logit_wall = LOGIT_CLAMP;
+                py_obj.grid[(ix + iy * columns) as usize].logit_flag = -LOGIT_CLAMP;
+                py_obj.grid[(ix + iy * columns) as usize].logit_capture_point = -LOGIT_CLAMP;
             }
         }
     });
@@ -348,7 +348,7 @@ pub fn update_true_grid(
             let mut py_obj = grid.borrow_mut(py);
 
             for (col, row) in overlapping {
-                let idx = (row * (py_obj.width as u32) + col) as usize;
+                let idx = (row * (py_obj.columns as u32) + col) as usize;
                 py_obj.grid[idx].assignment = Some(EntityType::Flag);
                 py_obj.grid[idx].logit_free = -LOGIT_CLAMP;
                 py_obj.grid[idx].logit_wall = -LOGIT_CLAMP;
@@ -380,7 +380,7 @@ pub fn update_true_grid(
             let mut py_obj = grid.borrow_mut(py);
 
             for (col, row) in overlapping {
-                let idx = (row * (py_obj.width as u32) + col) as usize;
+                let idx = (row * (py_obj.columns as u32) + col) as usize;
                 py_obj.grid[idx].assignment = Some(EntityType::CapturePoint);
                 py_obj.grid[idx].logit_free = -LOGIT_CLAMP;
                 py_obj.grid[idx].logit_wall = -LOGIT_CLAMP;

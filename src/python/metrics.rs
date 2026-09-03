@@ -40,7 +40,7 @@ pub struct GameResult {
     /// For each requested threshold, the first simulated time the mapping error dropped to or
     /// below it, or `None` if it never did. In the order the thresholds were given.
     #[pyo3(get)]
-    pub milestones: Vec<(f32, Option<f32>)>,
+    pub mapping_error_milestones: Vec<(f32, Option<f32>)>,
 
     /// Simulated time of each flag capture, in order.
     #[pyo3(get)]
@@ -55,7 +55,7 @@ pub struct GameResult {
     /// The maze seed actually used. Worth recording when the config left `seed` unset, since it is
     /// what makes a run reproducible.
     #[pyo3(get)]
-    pub seed: u32,
+    pub maze_seed: u32,
 
     /// Set if the Python policy raised or stopped responding, in which case the run ended early
     /// and the other metrics describe only the part that ran.
@@ -69,7 +69,7 @@ impl GameResult {
     /// The first simulated time the mapping error reached `threshold`, or `None` if it never did.
     /// Only thresholds that were requested for the run are known.
     pub fn time_to_mapping_error(&self, threshold: f32) -> Option<f32> {
-        self.milestones
+        self.mapping_error_milestones
             .iter()
             .find(|(t, _)| (*t - threshold).abs() < f32::EPSILON)
             .and_then(|(_, time)| *time)
@@ -83,7 +83,7 @@ impl GameResult {
 impl std::fmt::Display for GameResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (wrong, total) = self.mapping_error_cells;
-        writeln!(f, "GameResult (seed {})", self.seed)?;
+        writeln!(f, "GameResult (maze seed {})", self.maze_seed)?;
         writeln!(
             f,
             "  ran for            {:.1}s{}",
@@ -98,7 +98,7 @@ impl std::fmt::Display for GameResult {
             total
         )?;
 
-        for (threshold, time) in &self.milestones {
+        for (threshold, time) in &self.mapping_error_milestones {
             match time {
                 Some(time) => writeln!(
                     f,
@@ -139,7 +139,7 @@ pub struct MetricsConfig {
     /// Simulated seconds to run for.
     pub max_seconds: f32,
     /// Mapping-error thresholds to time, as fractions in `[0, 1]`.
-    pub milestones: Vec<f32>,
+    pub mapping_error_milestones: Vec<f32>,
     /// Stop as soon as every flag has been captured, rather than using the full time budget.
     pub stop_on_all_flags_captured: bool,
     pub result_sender: Sender<GameResult>,
@@ -148,14 +148,14 @@ pub struct MetricsConfig {
 /// Metrics accumulated so far.
 #[derive(Resource, Default)]
 pub struct MetricsState {
-    milestone_times: Vec<Option<f32>>,
+    mapping_error_milestone_times: Vec<Option<f32>>,
     flag_capture_times: Vec<f32>,
     last_capture_count: u32,
     mapping_error_cells: (u32, u32),
     final_mapping_error: f32,
     elapsed_seconds: f32,
     timed_out: bool,
-    seed: u32,
+    maze_seed: u32,
     total_flags: u32,
     /// Guards against sending the result twice, since `AppExit` can be observed on more than one
     /// frame before the loop actually stops.
@@ -179,8 +179,8 @@ fn init_metrics(
     metrics_config: Res<MetricsConfig>,
     config: Res<MazeConfig>,
 ) {
-    state.milestone_times = vec![None; metrics_config.milestones.len()];
-    state.seed = config.maze_generation.seed.unwrap_or(0);
+    state.mapping_error_milestone_times = vec![None; metrics_config.mapping_error_milestones.len()];
+    state.maze_seed = config.maze_generation.seed.unwrap_or(0);
 }
 
 fn record_metrics(
@@ -202,9 +202,9 @@ fn record_metrics(
     state.mapping_error_cells = (wrong, total);
     state.final_mapping_error = error;
 
-    for (index, threshold) in metrics_config.milestones.iter().enumerate() {
-        if state.milestone_times[index].is_none() && error <= *threshold {
-            state.milestone_times[index] = Some(now);
+    for (index, threshold) in metrics_config.mapping_error_milestones.iter().enumerate() {
+        if state.mapping_error_milestone_times[index].is_none() && error <= *threshold {
+            state.mapping_error_milestone_times[index] = Some(now);
         }
     }
 
@@ -250,16 +250,16 @@ fn report_result(
         timed_out: state.timed_out,
         final_mapping_error: state.final_mapping_error,
         mapping_error_cells: state.mapping_error_cells,
-        milestones: metrics_config
-            .milestones
+        mapping_error_milestones: metrics_config
+            .mapping_error_milestones
             .iter()
             .copied()
-            .zip(state.milestone_times.iter().copied())
+            .zip(state.mapping_error_milestone_times.iter().copied())
             .collect(),
         flag_capture_times: state.flag_capture_times.clone(),
         flags_captured: state.last_capture_count,
         total_flags: state.total_flags,
-        seed: state.seed,
+        maze_seed: state.maze_seed,
         policy_error: policy_error.and_then(|slot| slot.get()),
     };
 

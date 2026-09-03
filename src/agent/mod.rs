@@ -29,14 +29,14 @@ pub struct AgentConfig {
 
     #[pyo3(get, set)]
     #[derivative(Default(value = "10.0"))]
-    pub speed: f32,
+    pub max_speed: f32,
 
     #[pyo3(get, set)]
     #[derivative(Default(value = "60.0"))]
     pub policy_hz: f32,
 
     #[pyo3(get, set)]
-    pub odometry_stddev: f32,
+    pub position_stddev: f32,
 
     #[pyo3(get, set)]
     pub range_stddev: f32,
