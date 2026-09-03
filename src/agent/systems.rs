@@ -71,9 +71,12 @@ pub fn spawn_agents(
         .id();
 
     let ghost_entity = commands
-        .spawn(GhostAgentBundle::new(
-            &format!("{}-ghost", config.agent.name),
-            Vec3::new(position.0, 0.0, position.1),
+        .spawn((
+            GhostAgentBundle::new(
+                &format!("{}-ghost", config.agent.name),
+                Vec3::new(position.0, 0.0, position.1),
+            ),
+            Visibility::Hidden,
         ))
         .id();
 

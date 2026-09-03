@@ -404,8 +404,8 @@ fn apply_actions(
 
 fn update_estimated_position_text(
     bridge: Option<Res<Bridge>>,
-    agent_transform: Query<&Transform, (With<Agent>, Without<GhostAgent>)>,
-    mut ghost_agent_transform: Query<&mut Transform, (With<GhostAgent>, Without<Agent>)>,
+    agent_transform: Query<&Transform, With<Agent>>,
+    mut ghost_agent: Query<(&mut Transform, &mut Visibility), With<GhostAgent>>,
     mut query: Query<&mut Text, With<EstimatedPositionText>>,
 ) {
     let Some(bridge) = bridge else {
@@ -414,7 +414,7 @@ fn update_estimated_position_text(
     let Some(agent_transform) = agent_transform.single().ok() else {
         return;
     };
-    let Some(mut ghost_transform) = ghost_agent_transform.single_mut().ok() else {
+    let Some((mut ghost_transform, mut ghost_visibility)) = ghost_agent.single_mut().ok() else {
         return;
     };
     let mut query = query.iter_mut();
@@ -436,6 +436,7 @@ fn update_estimated_position_text(
 
     text.0 = format!("Estimated Agent Position: ({x:.2}, {y:.2}) [{error:.2}]");
     ghost_transform.translation = Vec3::new(x, 0.0, y);
+    *ghost_visibility = Visibility::Visible;
 }
 
 fn on_test_harness_stop(bridge: Option<Res<Bridge>>, mut exit: MessageWriter<AppExit>) {

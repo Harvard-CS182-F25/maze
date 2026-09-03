@@ -93,6 +93,9 @@ jobs:
                   # If stub_gen is a Rust bin, avoid sccache requirement for this one step:
                   env -u RUSTC_WRAPPER cargo run --bin stub_gen --no-default-features --release
 
+            - name: Verify generated stubs are current
+              run: git diff --exit-code -- python/maze_core/_core.pyi
+
             - uses: actions/upload-artifact@v4
               with:
                   name: dist-linux

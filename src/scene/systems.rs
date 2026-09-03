@@ -220,7 +220,7 @@ pub fn setup_hud(mut commands: Commands, config: Res<MazeConfig>, time: Res<Time
             ));
 
             parent.spawn((
-                Text::new("Estimated Agent Position: ()"),
+                Text::new("Estimated Agent Position: unavailable"),
                 line_font.clone(),
                 line_layout,
                 EstimatedPositionText,
