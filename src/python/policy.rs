@@ -402,10 +402,11 @@ fn apply_actions(
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn update_estimated_position_text(
     bridge: Option<Res<Bridge>>,
-    agent_transform: Query<&Transform, With<Agent>>,
-    mut ghost_agent: Query<(&mut Transform, &mut Visibility), With<GhostAgent>>,
+    agent_transform: Query<&Transform, (With<Agent>, Without<GhostAgent>)>,
+    mut ghost_agent: Query<(&mut Transform, &mut Visibility), (With<GhostAgent>, Without<Agent>)>,
     mut query: Query<&mut Text, With<EstimatedPositionText>>,
 ) {
     let Some(bridge) = bridge else {
