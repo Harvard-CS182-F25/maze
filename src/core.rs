@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use derivative::Derivative;
 use pyo3::prelude::*;
-use pyo3_stub_gen::derive::gen_stub_pyclass;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use serde::{Deserialize, Serialize};
 
 use crate::agent;
@@ -32,10 +32,6 @@ pub struct MazeConfig {
     pub maze_generation: scene::MazeGenerationConfig,
     #[pyo3(get, set)]
     pub use_true_map: bool,
-    /// When true the agent is driven by the keyboard: `Arrows` or `WASD` to move, `Space` to pick
-    /// up and drop flags. The Python policy still runs every tick so a mapping agent keeps building
-    /// its occupancy grid while you drive, but its actions are ignored.
-    #[pyo3(get, set)]
     pub teleop: bool,
     #[pyo3(get, set)]
     pub debug: bool,
@@ -50,8 +46,22 @@ pub enum StartupSets {
     Agents,
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl MazeConfig {
+    /// When true the agent is driven by the keyboard: `Arrows` or `WASD` to move, `Space` to pick
+    /// up and drop flags. The Python policy still runs every tick so a mapping agent keeps building
+    /// its occupancy grid while you drive, but its actions are ignored.
+    #[getter]
+    fn teleop(&self) -> bool {
+        self.teleop
+    }
+
+    #[setter]
+    fn set_teleop(&mut self, value: bool) {
+        self.teleop = value;
+    }
+
     fn __repr__(&self) -> PyResult<String> {
         Ok(format!("MazeConfig({})", self.__str__()?))
     }

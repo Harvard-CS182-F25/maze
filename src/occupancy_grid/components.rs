@@ -75,6 +75,7 @@ impl std::fmt::Display for OccupancyGridEntry {
 
 #[gen_stub_pyclass]
 #[pyclass(name = "OccupancyGridEntry", str)]
+/// Represents a mutable occupancy-grid cell.
 pub struct OccupancyCellView {
     grid: Py<OccupancyGrid>,
     index: usize,
@@ -83,7 +84,7 @@ pub struct OccupancyCellView {
 #[gen_stub_pymethods]
 #[pymethods]
 impl OccupancyCellView {
-    /// The assignment of the cell, or None if unassigned. Must be manually set
+    /// Mutable cell type assignment. Must be updated manually.
     #[getter]
     pub fn assignment(&self, py: Python) -> PyResult<Option<EntityType>> {
         let grid = self.grid.borrow(py);
@@ -101,7 +102,7 @@ impl OccupancyCellView {
         })
     }
 
-    /// The logit value for the "free" class. Higher means more likely to be free. Clamped to [-LOGIT_CLAMP, LOGIT_CLAMP]
+    /// Mutable logit for free space.
     #[getter]
     pub fn logit_free(&self, py: Python) -> PyResult<f32> {
         let grid = self.grid.borrow(py);
@@ -119,7 +120,7 @@ impl OccupancyCellView {
         })
     }
 
-    /// The logit value for the "wall" class. Higher means more likely to be wall. Clamped to [-LOGIT_CLAMP, LOGIT_CLAMP]
+    /// Mutable logit for a wall.
     #[getter]
     pub fn logit_wall(&self, py: Python) -> PyResult<f32> {
         let grid = self.grid.borrow(py);
@@ -137,7 +138,7 @@ impl OccupancyCellView {
         })
     }
 
-    /// The logit value for the "flag" class. Higher means more likely to be flag. Clamped to [-LOGIT_CLAMP, LOGIT_CLAMP]
+    /// Mutable logit for a flag.
     #[getter]
     pub fn logit_flag(&self, py: Python) -> PyResult<f32> {
         let grid = self.grid.borrow(py);
@@ -155,7 +156,7 @@ impl OccupancyCellView {
         })
     }
 
-    /// The logit value for the "capture_point" class. Higher means more likely to be capture_point. Clamped to [-LOGIT_CLAMP, LOGIT_CLAMP]
+    /// Mutable logit for a capture point.
     #[getter]
     pub fn logit_capture_point(&self, py: Python) -> PyResult<f32> {
         let grid = self.grid.borrow(py);
@@ -173,7 +174,7 @@ impl OccupancyCellView {
         })
     }
 
-    /// Returns the probabilities of each class as a tuple (p_free, p_wall, p_flag, p_capture_point) using a softmax over the logits.
+    /// Returns softmax probabilities `(free, wall, flag, capture_point)`.
     pub fn probabilities(&self, py: Python) -> PyResult<(f32, f32, f32, f32)> {
         let grid = self.grid.borrow(py);
         let entry = &grid.grid[self.index];
@@ -194,17 +195,18 @@ impl std::fmt::Display for OccupancyCellView {
 #[gen_stub_pyclass]
 #[pyclass(name = "OccupancyGrid")]
 #[derive(Debug, Clone, Default, Reflect)]
+/// Represents a mutable occupancy grid, indexed by `grid[column, row]`.
 pub struct OccupancyGrid {
     pub grid: Vec<OccupancyGridEntry>,
-    /// Size of each cell in world units
+    /// Returns the edge length of each cell.
     #[pyo3(get)]
     pub cell_size: f32,
 
-    /// Number of columns
+    /// Returns the number of columns.
     #[pyo3(get)]
     pub columns: usize,
 
-    /// Number of rows
+    /// Returns the number of rows.
     #[pyo3(get)]
     pub rows: usize,
 }
@@ -242,7 +244,7 @@ impl OccupancyGrid {
     }
 
     #[getter]
-    /// Returns (columns, rows)
+    /// Returns `(columns, rows)`.
     pub fn shape(&self) -> (usize, usize) {
         (self.columns, self.rows)
     }

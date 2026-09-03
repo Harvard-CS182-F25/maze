@@ -50,9 +50,16 @@ impl RayCasters {
 #[derive(Debug, Clone, PartialEq, Reflect)]
 #[gen_stub_pyclass_complex_enum]
 #[pyclass(name = "Action", eq)]
+/// An action returned by an agent policy.
 pub enum Action {
+    /// Moves agent `agent_id` at `velocity`, capped to agent's max speed.
+    /// Example: `Action.Move(agent_id, velocity)`.
     Move { agent_id: u32, velocity: (f32, f32) },
+    /// Makes agent `agent_id` attempt to pick up a nearby flag.
+    /// Example: `Action.PickupFlag(agent_id)`.
     PickupFlag { agent_id: u32 },
+    /// Makes agent `agent_id` attempt to drop its flag at a capture point.
+    /// Example: `Action.DropFlag(agent_id)`.
     DropFlag { agent_id: u32 },
 }
 

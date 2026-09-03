@@ -20,11 +20,15 @@ use crate::{
 #[derive(Clone, Debug, PartialEq)]
 #[gen_stub_pyclass]
 #[pyclass(name = "GameState", frozen)]
+/// Represents a snapshot of the game state.
 pub struct GameState {
+    /// Returns the state of the agent.
     #[pyo3(get)]
     pub agent: AgentState,
+    /// Returns the total number of flags.
     #[pyo3(get)]
     pub total_flags: u32,
+    /// Returns the number of flags delivered to capture points.
     #[pyo3(get)]
     pub captured_flags: u32,
     #[pyo3(get)]
@@ -36,28 +40,29 @@ pub struct GameState {
 #[derive(Clone, Debug, PartialEq)]
 #[gen_stub_pyclass]
 #[pyclass(name = "AgentState", frozen)]
+/// Represents the state of the agent, including its observed information.
 pub struct AgentState {
-    /// The unique ID of the agent entity.
+    /// Returns the entity ID of the agent.
     #[pyo3(get)]
     pub id: u32,
 
-    /// The (noisy!) position of the agent in world coordinates
+    /// Returns the observed position, including position noise.
     #[pyo3(get)]
     pub position: (f32, f32),
 
-    /// The standard deviation of the position noise. This noise is Gaussian with mean 0 and stddev `position_stddev`.
+    /// Returns the standard deviation of position observations.
     #[pyo3(get)]
     pub position_stddev: f32,
 
-    /// The results of the agent's raycasts.
+    /// Returns a list of range-sensor readings.
     #[pyo3(get)]
     pub raycasts: Vec<HitInfo>,
 
-    /// The entity ID of the flag the agent is currently carrying, if any.
+    /// Returns the ID of the flag carried, if any.
     #[pyo3(get)]
     pub flag_id: Option<u32>,
 
-    /// The maximum linear speed of the agent.
+    /// Returns the maximum linear speed of the agent.
     #[pyo3(get)]
     pub max_speed: f32,
 }
@@ -65,7 +70,7 @@ pub struct AgentState {
 #[gen_stub_pyclass_enum]
 #[pyclass(name = "EntityType", frozen, eq, hash, str)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
-/// The type of entity that was hit by a raycast. Note, that "Unknown" should not occur.
+/// Represents the type observed at the endpoint of a range-sensor reading.
 pub enum EntityType {
     Free,
     Wall,
@@ -90,29 +95,30 @@ impl std::fmt::Display for EntityType {
 #[gen_stub_pyclass]
 #[pyclass(name = "HitInfo", frozen, str)]
 #[derive(Clone, Debug, PartialEq)]
+/// Represents one range-sensor reading from the agent's current position.
 pub struct HitInfo {
-    /// The angle of the raycast in radians, relative to the +x axis (right on the screen). Remember, +y points down on the screen!
+    /// Returns the ray angle in radians clockwise from +x.
     #[pyo3(get)]
     pub theta: f32,
 
-    /// The type of entity that was hit by the raycast.
+    /// Returns the type observed at the raycast endpoint. Equals `Free` if
+    /// no collision occurs before the endpoint.
     #[pyo3(get)]
     pub endpoint_type: EntityType,
 
-    /// How far the ray traveled before hitting something, or the max distance if nothing was hit.
+    /// Returns the reported distance, including range noise.
     #[pyo3(get)]
     pub distance: f32,
 
-    /// The maximum distance the raycast could travel.
+    /// Returns the maximum distance the raycast can travel.
     #[pyo3(get)]
     pub max_distance: f32,
 
-    /// The confidence (probability of each class) of the thing that the ray hit.
-    /// If nothing was hit, this will be the confidence of an empty space.
+    /// Returns the per-class confidence at the endpoint.
     #[pyo3(get)]
     pub endpoint_confidence: SensorConfidence,
 
-    /// The confidence (probability of each class) of the cells that the ray passed through of being free space.
+    /// Returns the per-class confidence for cells before the endpoint.
     #[pyo3(get)]
     pub free_confidence: SensorConfidence,
 }
@@ -120,20 +126,22 @@ pub struct HitInfo {
 #[gen_stub_pyclass]
 #[pyclass(name = "SensorConfidence")]
 #[derive(Clone, Debug, PartialEq)]
+/// Represents per-class sensor confidence used to update an occupancy grid.
+/// Note that these are not normalized probabilities.
 pub struct SensorConfidence {
-    /// Confidence in free space
+    /// Returns the confidence in a free space.
     #[pyo3(get)]
     pub conf_free: f32,
 
-    /// Confidence in a wall
+    /// Returns the confidence in a wall.
     #[pyo3(get)]
     pub conf_wall: f32,
 
-    /// Confidence in a flag
+    /// Returns the confidence in a flag.
     #[pyo3(get)]
     pub conf_flag: f32,
 
-    /// Confidence in a capture point
+    /// Returns the confidence in a capture point.
     #[pyo3(get)]
     pub conf_capture_point: f32,
 }
@@ -151,6 +159,7 @@ impl SensorConfidence {
         }
     }
 
+    /// Returns `(conf_free, conf_wall, conf_flag, conf_capture_point)`.
     pub fn as_tuple(&self) -> (f32, f32, f32, f32) {
         (
             self.conf_free,

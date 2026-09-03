@@ -6,7 +6,14 @@ import typing
 from enum import Enum
 
 class Action:
+    r"""
+    An action returned by an agent policy.
+    """
     class Move(Action):
+        r"""
+        Moves agent `agent_id` at `velocity`, capped to agent's max speed.
+        Example: `Action.Move(agent_id, velocity)`.
+        """
         __match_args__ = ("agent_id", "velocity",)
         @property
         def agent_id(self) -> builtins.int: ...
@@ -15,12 +22,20 @@ class Action:
         def __new__(cls, agent_id:builtins.int, velocity:tuple[builtins.float, builtins.float]) -> Action.Move: ...
     
     class PickupFlag(Action):
+        r"""
+        Makes agent `agent_id` attempt to pick up a nearby flag.
+        Example: `Action.PickupFlag(agent_id)`.
+        """
         __match_args__ = ("agent_id",)
         @property
         def agent_id(self) -> builtins.int: ...
         def __new__(cls, agent_id:builtins.int) -> Action.PickupFlag: ...
     
     class DropFlag(Action):
+        r"""
+        Makes agent `agent_id` attempt to drop its flag at a capture point.
+        Example: `Action.DropFlag(agent_id)`.
+        """
         __match_args__ = ("agent_id",)
         @property
         def agent_id(self) -> builtins.int: ...
@@ -55,35 +70,38 @@ class AgentConfig:
     def occupancy_grid_cell_size(self, value: builtins.float) -> None: ...
 
 class AgentState:
+    r"""
+    Represents the state of the agent, including its observed information.
+    """
     @property
     def id(self) -> builtins.int:
         r"""
-        The unique ID of the agent entity.
+        Returns the entity ID of the agent.
         """
     @property
     def position(self) -> tuple[builtins.float, builtins.float]:
         r"""
-        The (noisy!) position of the agent in world coordinates
+        Returns the observed position, including position noise.
         """
     @property
     def position_stddev(self) -> builtins.float:
         r"""
-        The standard deviation of the position noise. This noise is Gaussian with mean 0 and stddev `position_stddev`.
+        Returns the standard deviation of position observations.
         """
     @property
     def raycasts(self) -> builtins.list[HitInfo]:
         r"""
-        The results of the agent's raycasts.
+        Returns a list of range-sensor readings.
         """
     @property
     def flag_id(self) -> typing.Optional[builtins.int]:
         r"""
-        The entity ID of the flag the agent is currently carrying, if any.
+        Returns the ID of the flag carried, if any.
         """
     @property
     def max_speed(self) -> builtins.float:
         r"""
-        The maximum linear speed of the agent.
+        Returns the maximum linear speed of the agent.
         """
 
 class FlagConfig:
@@ -156,48 +174,63 @@ class GameResult:
     def __repr__(self) -> builtins.str: ...
 
 class GameState:
+    r"""
+    Represents a snapshot of the game state.
+    """
     @property
-    def agent(self) -> AgentState: ...
+    def agent(self) -> AgentState:
+        r"""
+        Returns the state of the agent.
+        """
     @property
-    def total_flags(self) -> builtins.int: ...
+    def total_flags(self) -> builtins.int:
+        r"""
+        Returns the total number of flags.
+        """
     @property
-    def captured_flags(self) -> builtins.int: ...
+    def captured_flags(self) -> builtins.int:
+        r"""
+        Returns the number of flags delivered to capture points.
+        """
     @property
     def world_width(self) -> builtins.float: ...
     @property
     def world_height(self) -> builtins.float: ...
 
 class HitInfo:
+    r"""
+    Represents one range-sensor reading from the agent's current position.
+    """
     @property
     def theta(self) -> builtins.float:
         r"""
-        The angle of the raycast in radians, relative to the +x axis (right on the screen). Remember, +y points down on the screen!
+        Returns the ray angle in radians clockwise from +x.
         """
     @property
     def endpoint_type(self) -> EntityType:
         r"""
-        The type of entity that was hit by the raycast.
+        Returns the type observed at the raycast endpoint. Equals `Free` if
+        no collision occurs before the endpoint.
         """
     @property
     def distance(self) -> builtins.float:
         r"""
-        How far the ray traveled before hitting something, or the max distance if nothing was hit.
+        Returns the reported distance, including range noise.
         """
     @property
     def max_distance(self) -> builtins.float:
         r"""
-        The maximum distance the raycast could travel.
+        Returns the maximum distance the raycast can travel.
         """
     @property
     def endpoint_confidence(self) -> SensorConfidence:
         r"""
-        The confidence (probability of each class) of the thing that the ray hit.
-        If nothing was hit, this will be the confidence of an empty space.
+        Returns the per-class confidence at the endpoint.
         """
     @property
     def free_confidence(self) -> SensorConfidence:
         r"""
-        The confidence (probability of each class) of the cells that the ray passed through of being free space.
+        Returns the per-class confidence for cells before the endpoint.
         """
     def __str__(self) -> builtins.str: ...
 
@@ -219,20 +252,6 @@ class MazeConfig:
     @use_true_map.setter
     def use_true_map(self, value: builtins.bool) -> None: ...
     @property
-    def teleop(self) -> builtins.bool:
-        r"""
-        When true the agent is driven by the keyboard: `Arrows` or `WASD` to move, `Space` to pick
-        up and drop flags. The Python policy still runs every tick so a mapping agent keeps building
-        its occupancy grid while you drive, but its actions are ignored.
-        """
-    @teleop.setter
-    def teleop(self, value: builtins.bool) -> None:
-        r"""
-        When true the agent is driven by the keyboard: `Arrows` or `WASD` to move, `Space` to pick
-        up and drop flags. The Python policy still runs every tick so a mapping agent keeps building
-        its occupancy grid while you drive, but its actions are ignored.
-        """
-    @property
     def debug(self) -> builtins.bool: ...
     @debug.setter
     def debug(self, value: builtins.bool) -> None: ...
@@ -240,6 +259,17 @@ class MazeConfig:
     def headless(self) -> builtins.bool: ...
     @headless.setter
     def headless(self, value: builtins.bool) -> None: ...
+    @property
+    def teleop(self) -> builtins.bool:
+        r"""
+        When true the agent is driven by the keyboard: `Arrows` or `WASD` to move, `Space` to pick
+        up and drop flags. The Python policy still runs every tick so a mapping agent keeps building
+        its occupancy grid while you drive, but its actions are ignored.
+        """
+    @teleop.setter
+    def teleop(self, value: builtins.bool) -> None: ...
+    def __repr__(self) -> builtins.str: ...
+    def __str__(self) -> builtins.str: ...
 
 class MazeGenerationConfig:
     @property
@@ -260,69 +290,75 @@ class MazeGenerationConfig:
     def cell_size(self, value: builtins.float) -> None: ...
 
 class OccupancyGrid:
+    r"""
+    Represents a mutable occupancy grid, indexed by `grid[column, row]`.
+    """
     @property
     def cell_size(self) -> builtins.float:
         r"""
-        Size of each cell in world units
+        Returns the edge length of each cell.
         """
     @property
     def columns(self) -> builtins.int:
         r"""
-        Number of columns
+        Returns the number of columns.
         """
     @property
     def rows(self) -> builtins.int:
         r"""
-        Number of rows
+        Returns the number of rows.
         """
     @property
     def shape(self) -> tuple[builtins.int, builtins.int]:
         r"""
-        Returns (columns, rows)
+        Returns `(columns, rows)`.
         """
     def __new__(cls, columns:builtins.int, rows:builtins.int, cell_size:builtins.float) -> OccupancyGrid: ...
     def __getitem__(self, key:typing.Any) -> OccupancyGridEntry: ...
 
 class OccupancyGridEntry:
+    r"""
+    Represents a mutable occupancy-grid cell.
+    """
     @property
     def assignment(self) -> typing.Optional[EntityType]:
         r"""
-        The assignment of the cell, or None if unassigned. Must be manually set
+        Mutable cell type assignment. Must be updated manually.
         """
     @assignment.setter
     def assignment(self, value: typing.Optional[EntityType]) -> None: ...
     @property
     def logit_free(self) -> builtins.float:
         r"""
-        The logit value for the "free" class. Higher means more likely to be free. Clamped to [-LOGIT_CLAMP, LOGIT_CLAMP]
+        Mutable logit for free space.
         """
     @logit_free.setter
     def logit_free(self, value: builtins.float) -> None: ...
     @property
     def logit_wall(self) -> builtins.float:
         r"""
-        The logit value for the "wall" class. Higher means more likely to be wall. Clamped to [-LOGIT_CLAMP, LOGIT_CLAMP]
+        Mutable logit for a wall.
         """
     @logit_wall.setter
     def logit_wall(self, value: builtins.float) -> None: ...
     @property
     def logit_flag(self) -> builtins.float:
         r"""
-        The logit value for the "flag" class. Higher means more likely to be flag. Clamped to [-LOGIT_CLAMP, LOGIT_CLAMP]
+        Mutable logit for a flag.
         """
     @logit_flag.setter
     def logit_flag(self, value: builtins.float) -> None: ...
     @property
     def logit_capture_point(self) -> builtins.float:
         r"""
-        The logit value for the "capture_point" class. Higher means more likely to be capture_point. Clamped to [-LOGIT_CLAMP, LOGIT_CLAMP]
+        Mutable logit for a capture point.
         """
     @logit_capture_point.setter
     def logit_capture_point(self, value: builtins.float) -> None: ...
     def __str__(self) -> builtins.str: ...
     def probabilities(self) -> tuple[builtins.float, builtins.float, builtins.float, builtins.float]:
         r"""
-        Returns the probabilities of each class as a tuple (p_free, p_wall, p_flag, p_capture_point) using a softmax over the logits.
+        Returns softmax probabilities `(free, wall, flag, capture_point)`.
         """
 
 class OccupancyGridView:
@@ -337,28 +373,35 @@ class OccupancyGridView:
     def __getitem__(self, key:typing.Any) -> OccupancyGridEntry: ...
 
 class SensorConfidence:
+    r"""
+    Represents per-class sensor confidence used to update an occupancy grid.
+    Note that these are not normalized probabilities.
+    """
     @property
     def conf_free(self) -> builtins.float:
         r"""
-        Confidence in free space
+        Returns the confidence in a free space.
         """
     @property
     def conf_wall(self) -> builtins.float:
         r"""
-        Confidence in a wall
+        Returns the confidence in a wall.
         """
     @property
     def conf_flag(self) -> builtins.float:
         r"""
-        Confidence in a flag
+        Returns the confidence in a flag.
         """
     @property
     def conf_capture_point(self) -> builtins.float:
         r"""
-        Confidence in a capture point
+        Returns the confidence in a capture point.
         """
     def __new__(cls, conf_free:builtins.float, conf_wall:builtins.float, conf_flag:builtins.float, conf_capture_point:builtins.float) -> SensorConfidence: ...
-    def as_tuple(self) -> tuple[builtins.float, builtins.float, builtins.float, builtins.float]: ...
+    def as_tuple(self) -> tuple[builtins.float, builtins.float, builtins.float, builtins.float]:
+        r"""
+        Returns `(conf_free, conf_wall, conf_flag, conf_capture_point)`.
+        """
 
 class StateQueue:
     @property
@@ -378,7 +421,7 @@ class StateQueue:
 
 class EntityType(Enum):
     r"""
-    The type of entity that was hit by a raycast. Note, that "Unknown" should not occur.
+    Represents the type observed at the endpoint of a range-sensor reading.
     """
     Free = ...
     Wall = ...
