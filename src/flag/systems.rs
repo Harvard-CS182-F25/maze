@@ -79,7 +79,6 @@ fn pick_positions_for(
 
     let mut blocked = vec![false; n];
 
-    // Reserve clearance around existing obstacles and already placed objectives.
     for (i, cell) in py_grid.grid.iter().enumerate() {
         match cell.assignment {
             Some(EntityType::Wall) => {
@@ -100,7 +99,6 @@ fn pick_positions_for(
         .map(|(i, _)| i)
         .collect();
 
-    // Shuffle candidates, then reserve clearance after each selection.
     candidates.shuffle(rng);
 
     let mut picked: Vec<usize> = Vec::with_capacity(count);
@@ -199,8 +197,8 @@ pub fn spawn_capture_points(
             arr
         });
 
-        // Note: existing Flags are already in the grid now, so capture points will
-        // also keep 3u away from them.
+        // Flags are already in the grid by now, so capture points keep their clearance from
+        // those too.
         pick_positions_for(
             &mut py_obj,
             &config,

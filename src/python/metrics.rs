@@ -235,7 +235,10 @@ fn init_metrics(
 ) {
     state.mapping_accuracy_milestone_times =
         vec![None; metrics_config.mapping_accuracy_milestones.len()];
-    state.maze_seed = config.maze_generation.seed.unwrap_or(0);
+    state.maze_seed = config
+        .maze_generation
+        .seed
+        .expect("Sensor RNG initialization should establish a maze seed before metrics start");
 }
 
 #[allow(clippy::too_many_arguments)]

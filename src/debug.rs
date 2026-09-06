@@ -26,9 +26,8 @@ impl Plugin for DebugPlugin {
 
         app.add_systems(Startup, setup_key_instructions);
 
-        // Add systems for toggling the diagnostics UI and stepping the simulation. Pausing itself
-        // lives in `PlaybackPlugin` (Space outside teleop) so it is available outside debug
-        // builds and stops the policy tick too, not just physics.
+        // Pausing lives in `PlaybackPlugin` (Space outside teleop) so it is available outside
+        // debug builds, and so it stops the policy as well as physics.
         app.add_systems(
             Update,
             (

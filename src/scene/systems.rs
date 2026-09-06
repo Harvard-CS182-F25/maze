@@ -441,45 +441,6 @@ pub fn update_mapping_metrics(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::mapping_metrics_from_assignments;
-    use crate::python::game_state::EntityType;
-
-    #[test]
-    fn mapping_metrics_track_overall_accuracy_and_per_class_recall() {
-        let metrics = mapping_metrics_from_assignments([
-            (Some(EntityType::Free), Some(EntityType::Free)),
-            (Some(EntityType::Wall), Some(EntityType::Free)),
-            (Some(EntityType::Wall), Some(EntityType::Wall)),
-            (None, Some(EntityType::Wall)),
-            (Some(EntityType::Free), Some(EntityType::Flag)),
-            (Some(EntityType::Wall), Some(EntityType::CapturePoint)),
-        ]);
-
-        assert_eq!(metrics.correct_cells, 2);
-        assert_eq!(metrics.total_cells, 4);
-        assert_eq!(metrics.free_correct_cells, 1);
-        assert_eq!(metrics.free_cells, 2);
-        assert_eq!(metrics.wall_correct_cells, 1);
-        assert_eq!(metrics.wall_cells, 2);
-        assert_eq!(metrics.accuracy(), 0.5);
-        assert_eq!(metrics.free_recall(), 0.5);
-        assert_eq!(metrics.wall_recall(), 0.5);
-    }
-
-    #[test]
-    fn all_free_prediction_has_no_wall_recall() {
-        let metrics = mapping_metrics_from_assignments([
-            (Some(EntityType::Free), Some(EntityType::Free)),
-            (Some(EntityType::Free), Some(EntityType::Wall)),
-        ]);
-
-        assert_eq!(metrics.free_recall(), 1.0);
-        assert_eq!(metrics.wall_recall(), 0.0);
-    }
-}
-
 pub fn update_true_position(
     mut query: Query<&mut Text, With<TruePositionText>>,
     agent_transform: Query<&Transform, With<Agent>>,
@@ -568,5 +529,44 @@ pub fn spawn_walls(
             let mesh = meshes.add(Cuboid::new(len, WALL_HEIGHT, WALL_THICKNESS));
             entity.insert((Mesh3d(mesh), MeshMaterial3d(graphics.material.clone())));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mapping_metrics_from_assignments;
+    use crate::python::game_state::EntityType;
+
+    #[test]
+    fn mapping_metrics_track_overall_accuracy_and_per_class_recall() {
+        let metrics = mapping_metrics_from_assignments([
+            (Some(EntityType::Free), Some(EntityType::Free)),
+            (Some(EntityType::Wall), Some(EntityType::Free)),
+            (Some(EntityType::Wall), Some(EntityType::Wall)),
+            (None, Some(EntityType::Wall)),
+            (Some(EntityType::Free), Some(EntityType::Flag)),
+            (Some(EntityType::Wall), Some(EntityType::CapturePoint)),
+        ]);
+
+        assert_eq!(metrics.correct_cells, 2);
+        assert_eq!(metrics.total_cells, 4);
+        assert_eq!(metrics.free_correct_cells, 1);
+        assert_eq!(metrics.free_cells, 2);
+        assert_eq!(metrics.wall_correct_cells, 1);
+        assert_eq!(metrics.wall_cells, 2);
+        assert_eq!(metrics.accuracy(), 0.5);
+        assert_eq!(metrics.free_recall(), 0.5);
+        assert_eq!(metrics.wall_recall(), 0.5);
+    }
+
+    #[test]
+    fn all_free_prediction_has_no_wall_recall() {
+        let metrics = mapping_metrics_from_assignments([
+            (Some(EntityType::Free), Some(EntityType::Free)),
+            (Some(EntityType::Free), Some(EntityType::Wall)),
+        ]);
+
+        assert_eq!(metrics.free_recall(), 1.0);
+        assert_eq!(metrics.wall_recall(), 0.0);
     }
 }

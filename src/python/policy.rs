@@ -143,7 +143,6 @@ impl Plugin for PythonPolicyBridgePlugin {
         });
         app.init_resource::<PolicyCost>();
 
-        // A policy tick observes the world, then applies its matching action.
         app.add_systems(
             FixedUpdate,
             (send_game_states, apply_actions)

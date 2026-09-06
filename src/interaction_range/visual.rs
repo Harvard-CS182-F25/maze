@@ -73,7 +73,6 @@ fn make_unit_dotted_ring(segments: usize, on_ratio: f32, thickness_frac: f32) ->
         uvs.extend_from_slice(&[[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]);
         normals.extend(std::iter::repeat_n([0.0, 1.0, 0.0], 4));
 
-        // Two triangles: v0, v1, v2 and v0, v2, v3 with normals pointing up
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
     }
 

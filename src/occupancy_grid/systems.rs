@@ -179,7 +179,7 @@ pub fn cursor_to_grid_cell<T: PyGridProvider>(
     windows: Query<&Window, With<PrimaryWindow>>,
     cams: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
     plane_q: Query<&GlobalTransform, With<GridPlane<T>>>,
-    config: Res<MazeConfig>,
+    grid: Res<T>,
     mut hover: ResMut<HoverCell>,
 ) {
     let Ok(window) = windows.single() else {
@@ -197,7 +197,6 @@ pub fn cursor_to_grid_cell<T: PyGridProvider>(
         return;
     };
 
-    // Cast the cursor through the camera onto the grid plane.
     let Ok(ray) = camera.viewport_to_world(cam_transform, cursor) else {
         return;
     };
@@ -224,25 +223,18 @@ pub fn cursor_to_grid_cell<T: PyGridProvider>(
     let inv = plane_gt.to_matrix().inverse();
     let local = inv.transform_point3(hit);
 
-    // Map plane-local XZ to a grid column and row.
-    let world_w = config.maze_generation.world_width;
-    let world_h = config.maze_generation.world_height;
-    let cell = config.agent.occupancy_grid_cell_size;
-    let grid_columns = (world_w / cell).round() as u32;
-    let grid_rows = (world_h / cell).round() as u32;
+    let cell = Python::attach(|py| {
+        let grid = grid.arc().read().unwrap();
+        let grid = grid.borrow(py);
+        grid.cell_at(local.x, local.z)
+    });
 
-    let u = (local.x + world_w * 0.5) / cell;
-    let v = (local.z + world_h * 0.5) / cell;
-
-    let col = u.floor() as i32;
-    let row = v.floor() as i32;
-
-    if col < 0 || row < 0 || col as u32 >= grid_columns || row as u32 >= grid_rows {
+    let Some((column, row)) = cell else {
         *hover = HoverCell::default();
         return;
-    }
+    };
 
-    hover.cell = Some(UVec2::new(col as u32, row as u32));
+    hover.cell = Some(UVec2::new(column as u32, row as u32));
     hover.world_hit = Some(hit);
 }
 
