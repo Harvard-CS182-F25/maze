@@ -68,6 +68,13 @@ impl MazeGenerationConfig {
             (self.world_height / self.cell_size).round() as i32,
         )
     }
+
+    /// How much ground the maze covers. Rounding to whole cells means this can differ from the
+    /// nominal world size in either direction.
+    pub(crate) fn maze_extent(&self) -> Vec2 {
+        let (columns, rows) = self.maze_dimensions();
+        Vec2::new(columns as f32, rows as f32) * self.cell_size
+    }
 }
 
 pub struct ScenePlugin;

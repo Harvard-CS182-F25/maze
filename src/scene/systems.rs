@@ -20,12 +20,24 @@ use crate::{
 
 pub fn setup_scene(
     mut commands: Commands,
+    config: Res<MazeConfig>,
     mut meshes: Option<ResMut<Assets<Mesh>>>,
     mut materials: Option<ResMut<Assets<StandardMaterial>>>,
 ) {
+    // The ground is the only thing the agent's grounded shape cast can hit, and an agent that
+    // leaves it stops responding to movement entirely, so it has to cover whichever of the maze
+    // and the nominal world is larger, plus the outer half of the border walls.
+    let maze = config.maze_generation.maze_extent();
+    let ground = Vec2::new(
+        maze.x.max(config.maze_generation.world_width),
+        maze.y.max(config.maze_generation.world_height),
+    ) + WALL_THICKNESS;
+
     let mut entity = commands.spawn((
         Name::new("Ground Plane"),
-        Transform::from_xyz(0.0, 0.0, 0.0).with_scale(Vec3::new(100.0, 1.0, 100.0)),
+        // The unit y scale puts the top face at y = 0.5, which is where the agent's raycasters
+        // originate and what the grounded shape cast's max distance is tuned against.
+        Transform::from_xyz(0.0, 0.0, 0.0).with_scale(Vec3::new(ground.x, 1.0, ground.y)),
         RigidBody::Static,
         Collider::cuboid(1.0, 1.0, 1.0),
         CollisionLayers::new(
@@ -41,7 +53,6 @@ pub fn setup_scene(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn push_horizontal(
     segs: &mut Vec<(Vec2, Vec2)>,
     x0: f32,
@@ -50,19 +61,13 @@ fn push_horizontal(
     row: i32,
     col: i32,
     pad: f32,
-    xmin: f32,
-    xmax: f32,
 ) {
     let z = z0 + (row as f32) * cell;
-    let mut ax = x0 + (col as f32) * cell - pad;
-    let mut bx = x0 + ((col + 1) as f32) * cell + pad;
-    // Padding may extend an interior segment, but never beyond the maze border.
-    ax = ax.max(xmin);
-    bx = bx.min(xmax);
+    let ax = x0 + (col as f32) * cell - pad;
+    let bx = x0 + ((col + 1) as f32) * cell + pad;
     segs.push((Vec2::new(ax, z), Vec2::new(bx, z)));
 }
 
-#[allow(clippy::too_many_arguments)]
 fn push_vertical(
     segs: &mut Vec<(Vec2, Vec2)>,
     x0: f32,
@@ -71,37 +76,30 @@ fn push_vertical(
     col: i32,
     row: i32,
     pad: f32,
-    zmin: f32,
-    zmax: f32,
 ) {
     let x = x0 + (col as f32) * cell;
-    let mut az = z0 + (row as f32) * cell - pad;
-    let mut bz = z0 + ((row + 1) as f32) * cell + pad;
-    az = az.max(zmin);
-    bz = bz.min(zmax);
+    let az = z0 + (row as f32) * cell - pad;
+    let bz = z0 + ((row + 1) as f32) * cell + pad;
     segs.push((Vec2::new(x, az), Vec2::new(x, bz)));
 }
 
+/// Wall centrelines for `maze`, each run `pad` past both endpoints so that it overlaps the
+/// perpendicular walls it meets. At half the wall thickness that squares off every junction,
+/// the four outer corners included, without widening the footprint the walls already occupy.
 pub fn segments_from_maze(maze: &Maze, config: &MazeConfig, pad: f32) -> Vec<(Vec2, Vec2)> {
     let cell = config.maze_generation.cell_size;
     let (w, h) = maze.size;
     let x0 = -(w as f32) * cell * 0.5;
     let z0 = -(h as f32) * cell * 0.5;
 
-    // Maze bounds cap the padded wall segments.
-    let xmin = x0;
-    let xmax = x0 + (w as f32) * cell;
-    let zmin = z0;
-    let zmax = z0 + (h as f32) * cell;
-
     let mut segments = Vec::new();
 
     // Add each outer border once; East and South borders come from the final row and column.
     for c in 0..w {
-        push_horizontal(&mut segments, x0, z0, cell, 0, c, pad, xmin, xmax);
+        push_horizontal(&mut segments, x0, z0, cell, 0, c, pad);
     }
     for r in 0..h {
-        push_vertical(&mut segments, x0, z0, cell, 0, r, pad, zmin, zmax);
+        push_vertical(&mut segments, x0, z0, cell, 0, r, pad);
     }
 
     // Emit East and South walls only, so shared walls are not duplicated.
@@ -109,10 +107,10 @@ pub fn segments_from_maze(maze: &Maze, config: &MazeConfig, pad: f32) -> Vec<(Ve
         for x in 0..w {
             let field = maze.get_field(&Coordinates::new(x, y)).expect("in-bounds");
             if !field.has_passage(&Direction::East) {
-                push_vertical(&mut segments, x0, z0, cell, x + 1, y, pad, zmin, zmax);
+                push_vertical(&mut segments, x0, z0, cell, x + 1, y, pad);
             }
             if !field.has_passage(&Direction::South) {
-                push_horizontal(&mut segments, x0, z0, cell, y + 1, x, pad, xmin, xmax);
+                push_horizontal(&mut segments, x0, z0, cell, y + 1, x, pad);
             }
         }
     }
@@ -527,8 +525,53 @@ pub fn spawn_walls(
 
 #[cfg(test)]
 mod tests {
-    use super::mapping_metrics_from_assignments;
+    use bevy::prelude::Vec2;
+    use maze_generator::prelude::Generator;
+    use maze_generator::recursive_backtracking::RbGenerator;
+
+    use super::{mapping_metrics_from_assignments, segments_from_maze};
+    use crate::core::MazeConfig;
     use crate::python::game_state::EntityType;
+    use crate::scene::WALL_THICKNESS;
+
+    /// The ground a wall built from `p0`-`p1` occupies: its length along the axis it runs on, and
+    /// its thickness across the other. Padding both axes would over-report the ends.
+    fn covers(p0: Vec2, p1: Vec2, half_thickness: f32, point: Vec2) -> bool {
+        let along = (p1 - p0).abs() * 0.5;
+        let across = Vec2::new(
+            if along.x == 0.0 { half_thickness } else { 0.0 },
+            if along.y == 0.0 { half_thickness } else { 0.0 },
+        );
+        (point - (p0 + p1) * 0.5).abs().cmple(along + across).all()
+    }
+
+    #[test]
+    fn wall_segments_close_the_outer_corners() {
+        let config = MazeConfig::default();
+        let (columns, rows) = config.maze_generation.maze_dimensions();
+        let maze = RbGenerator::new(Some([7u8; 32]))
+            .generate(columns, rows)
+            .unwrap();
+
+        let pad = WALL_THICKNESS * 0.5;
+        let segments = segments_from_maze(&maze, &config, pad);
+        let corner = config.maze_generation.maze_extent() * 0.5 + pad;
+
+        for sign in [
+            Vec2::new(-1.0, -1.0),
+            Vec2::new(1.0, -1.0),
+            Vec2::new(-1.0, 1.0),
+            Vec2::new(1.0, 1.0),
+        ] {
+            // Probe just inside the corner so the result does not turn on float equality at the
+            // boundary.
+            let point = sign * (corner - Vec2::splat(1e-3));
+            assert!(
+                segments.iter().any(|&(p0, p1)| covers(p0, p1, pad, point)),
+                "no wall covers the outer corner at {point}"
+            );
+        }
+    }
 
     #[test]
     fn mapping_metrics_track_overall_accuracy_and_per_class_recall() {
