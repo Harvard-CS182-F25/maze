@@ -33,6 +33,12 @@ pub struct AgentConfig {
 
     /// How often `get_action` is called, in Hz. Zero disables the policy entirely, which is only
     /// useful for a keyboard-only teleop demonstration.
+    ///
+    /// The policy runs on simulation ticks, which are fixed at 60 Hz, so a rate that does not
+    /// divide 60 cannot be hit exactly: it is correct on average, but the `dt` handed to
+    /// `get_action` alternates between neighbouring tick counts. At 7 Hz, for instance, `dt`
+    /// alternates between 0.133 and 0.150 rather than sitting at 1/7. A rate that divides 60
+    /// gives a constant `dt`.
     #[pyo3(get, set)]
     #[derivative(Default(value = "60.0"))]
     pub policy_hz: f32,

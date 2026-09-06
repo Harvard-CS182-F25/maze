@@ -22,10 +22,6 @@ use crate::{
     python::game_state::GameState,
 };
 
-/// How long a lockstep tick waits for the Python policy before giving up on it. Generous, because
-/// a student policy doing heavy numpy work on a big occupancy grid can legitimately be slow.
-const LOCKSTEP_POLICY_TIMEOUT: Duration = Duration::from_secs(60);
-
 /// The first error the Python policy raised, if it raised one. Held separately from `Bridge` so it
 /// outlives `shutdown_workers_on_exit`, which drops the bridge as soon as `AppExit` is written.
 #[derive(Resource, Clone, Default)]
@@ -336,12 +332,23 @@ fn apply_actions(
         return;
     };
 
+    // Zero waits forever, which is what a breakpoint inside `get_action` needs.
+    let timeout = config.agent.policy_timeout_seconds;
     let waited_from = std::time::Instant::now();
-    let action = match bridge
-        .agent_bridge
-        .rx_action
-        .recv_timeout(LOCKSTEP_POLICY_TIMEOUT)
-    {
+    let received = if timeout > 0.0 {
+        bridge
+            .agent_bridge
+            .rx_action
+            .recv_timeout(Duration::from_secs_f32(timeout))
+    } else {
+        bridge
+            .agent_bridge
+            .rx_action
+            .recv()
+            .map_err(|_| RecvTimeoutError::Disconnected)
+    };
+
+    let action = match received {
         Ok(action) => {
             let waited = waited_from.elapsed().as_secs_f32();
             policy_cost.smoothed_seconds += (waited - policy_cost.smoothed_seconds) * 0.1;
@@ -349,13 +356,12 @@ fn apply_actions(
         }
         Err(RecvTimeoutError::Timeout) => {
             error!(
-                "Policy did not respond within {}s; stopping",
-                LOCKSTEP_POLICY_TIMEOUT.as_secs()
+                "Policy did not respond within agent.policy_timeout_seconds ({timeout}s); stopping"
             );
-            bridge.agent_bridge.error.set(format!(
-                "policy did not respond within {}s",
-                LOCKSTEP_POLICY_TIMEOUT.as_secs()
-            ));
+            bridge
+                .agent_bridge
+                .error
+                .set(format!("policy did not respond within {timeout}s"));
             exit.write(AppExit::Success);
             return;
         }

@@ -120,39 +120,6 @@ pub fn segments_from_maze(maze: &Maze, config: &MazeConfig, pad: f32) -> Vec<(Ve
     segments
 }
 
-// Returns cells overlapped by a world-space XZ AABB.
-fn overlapping_indexes(
-    aabb_min: Vec2,
-    aabb_max: Vec2,
-    cell_size: f32,
-    world_width: f32,
-    world_height: f32,
-) -> Vec<(u32, u32)> {
-    let grid_w = (world_width / cell_size).round() as i32;
-    let grid_h = (world_height / cell_size).round() as i32;
-
-    let half_w = world_width * 0.5;
-    let half_h = world_height * 0.5;
-
-    let min_c = (((aabb_min.x + half_w) / cell_size).floor() as i32).clamp(0, grid_w - 1);
-    let min_r = (((aabb_min.y + half_h) / cell_size).floor() as i32).clamp(0, grid_h - 1);
-
-    let max_c = ((((aabb_max.x + half_w) / cell_size).ceil() as i32) - 1).clamp(0, grid_w - 1);
-    let max_r = ((((aabb_max.y + half_h) / cell_size).ceil() as i32) - 1).clamp(0, grid_h - 1);
-
-    if max_c < min_c || max_r < min_r {
-        return Vec::new();
-    }
-
-    let mut out = Vec::with_capacity(((max_c - min_c + 1) * (max_r - min_r + 1)) as usize);
-    for r in min_r..=max_r {
-        for c in min_c..=max_c {
-            out.push((c as u32, r as u32));
-        }
-    }
-    out
-}
-
 pub fn initialize_sensor_rng(mut commands: Commands, mut config: ResMut<MazeConfig>) {
     let seed = if let Some(seed) = config.maze_generation.seed {
         seed
@@ -581,18 +548,11 @@ pub fn spawn_walls(
             p0.y.max(p1.y) + WALL_THICKNESS * 0.5,
         );
 
-        let wall_indexes = overlapping_indexes(
-            aabb_bottom_left,
-            aabb_top_right,
-            config.agent.occupancy_grid_cell_size,
-            config.maze_generation.world_width,
-            config.maze_generation.world_height,
-        );
-
         Python::attach(|py| {
             let grid = true_grid.0.write().unwrap();
             let mut py_obj = grid.borrow_mut(py);
             let columns = py_obj.columns as u32;
+            let wall_indexes = py_obj.overlapping_cells(aabb_bottom_left, aabb_top_right);
 
             for (ix, iy) in wall_indexes.iter().copied() {
                 py_obj.grid[(ix + iy * columns) as usize].assignment = Some(EntityType::Wall);

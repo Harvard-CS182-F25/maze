@@ -55,12 +55,24 @@ class AgentConfig:
         r"""
         How often `get_action` is called, in Hz. Zero disables the policy entirely, which is only
         useful for a keyboard-only teleop demonstration.
+        
+        The policy runs on simulation ticks, which are fixed at 60 Hz, so a rate that does not
+        divide 60 cannot be hit exactly: it is correct on average, but the `dt` handed to
+        `get_action` alternates between neighbouring tick counts. At 7 Hz, for instance, `dt`
+        alternates between 0.133 and 0.150 rather than sitting at 1/7. A rate that divides 60
+        gives a constant `dt`.
         """
     @policy_hz.setter
     def policy_hz(self, value: builtins.float) -> None:
         r"""
         How often `get_action` is called, in Hz. Zero disables the policy entirely, which is only
         useful for a keyboard-only teleop demonstration.
+        
+        The policy runs on simulation ticks, which are fixed at 60 Hz, so a rate that does not
+        divide 60 cannot be hit exactly: it is correct on average, but the `dt` handed to
+        `get_action` alternates between neighbouring tick counts. At 7 Hz, for instance, `dt`
+        alternates between 0.133 and 0.150 rather than sitting at 1/7. A rate that divides 60
+        gives a constant `dt`.
         """
     @property
     def position_stddev(self) -> builtins.float: ...
@@ -356,6 +368,14 @@ class OccupancyGrid:
         """
     def __new__(cls, columns:builtins.int, rows:builtins.int, cell_size:builtins.float) -> OccupancyGrid: ...
     def __getitem__(self, key:typing.Any) -> OccupancyGridEntry: ...
+    def cell_at(self, x:builtins.float, y:builtins.float) -> typing.Optional[tuple[builtins.int, builtins.int]]:
+        r"""
+        Returns the `(column, row)` containing `(x, y)`, or `None` if outside grid.
+        """
+    def world_center(self, column:builtins.int, row:builtins.int) -> typing.Optional[tuple[builtins.float, builtins.float]]:
+        r"""
+        Returns the center of cell `(column, row)`, or `None` if outside grid.
+        """
 
 class OccupancyGridEntry:
     r"""
@@ -371,28 +391,28 @@ class OccupancyGridEntry:
     @property
     def logit_free(self) -> builtins.float:
         r"""
-        Mutable logit for free space.
+        Mutable logit for free space. Clamps to `±6`.
         """
     @logit_free.setter
     def logit_free(self, value: builtins.float) -> None: ...
     @property
     def logit_wall(self) -> builtins.float:
         r"""
-        Mutable logit for a wall.
+        Mutable logit for a wall. Clamps to `±6`.
         """
     @logit_wall.setter
     def logit_wall(self, value: builtins.float) -> None: ...
     @property
     def logit_flag(self) -> builtins.float:
         r"""
-        Mutable logit for a flag.
+        Mutable logit for a flag. Clamps to `±6`.
         """
     @logit_flag.setter
     def logit_flag(self, value: builtins.float) -> None: ...
     @property
     def logit_capture_point(self) -> builtins.float:
         r"""
-        Mutable logit for a capture point.
+        Mutable logit for a capture point. Clamps to `±6`.
         """
     @logit_capture_point.setter
     def logit_capture_point(self, value: builtins.float) -> None: ...
@@ -412,6 +432,14 @@ class OccupancyGridView:
     @property
     def shape(self) -> tuple[builtins.int, builtins.int]: ...
     def __getitem__(self, key:typing.Any) -> OccupancyGridEntry: ...
+    def cell_at(self, x:builtins.float, y:builtins.float) -> typing.Optional[tuple[builtins.int, builtins.int]]:
+        r"""
+        Returns the `(column, row)` containing `(x, y)`, or `None` if outside grid.
+        """
+    def world_center(self, column:builtins.int, row:builtins.int) -> typing.Optional[tuple[builtins.float, builtins.float]]:
+        r"""
+        Returns the center of cell `(column, row)`, or `None` if outside grid.
+        """
 
 class SensorConfidence:
     r"""

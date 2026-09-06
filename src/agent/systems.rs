@@ -27,19 +27,10 @@ pub fn spawn_agents(
             .iter()
             .enumerate()
             .filter_map(|(i, cell)| {
-                if cell.assignment == Some(EntityType::Free) {
-                    let grid_col = i as u32 % py_obj.columns as u32;
-                    let grid_row = i as u32 / py_obj.columns as u32;
-                    let x = (grid_col as f32) * config.agent.occupancy_grid_cell_size
-                        + config.agent.occupancy_grid_cell_size / 2.0
-                        - config.maze_generation.world_width / 2.0;
-                    let y = (grid_row as f32) * config.agent.occupancy_grid_cell_size
-                        + config.agent.occupancy_grid_cell_size / 2.0
-                        - config.maze_generation.world_height / 2.0;
-                    Some((x, y))
-                } else {
-                    None
+                if cell.assignment != Some(EntityType::Free) {
+                    return None;
                 }
+                py_obj.world_center(i % py_obj.columns, i / py_obj.columns)
             })
             .collect();
 

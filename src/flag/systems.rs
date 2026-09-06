@@ -60,12 +60,6 @@ fn mark_neighborhood_units(
     }
 }
 
-fn grid_to_world_xy(col: u32, row: u32, cell_size: f32, world_w: f32, world_h: f32) -> (f32, f32) {
-    let x = (col as f32) * cell_size + cell_size * 0.5 - world_w * 0.5;
-    let y = (row as f32) * cell_size + cell_size * 0.5 - world_h * 0.5;
-    (x, y)
-}
-
 /// Picks positions with 3.0-unit clearance from:
 /// - walls
 /// - existing flags/capture points
@@ -131,50 +125,13 @@ fn pick_positions_for(
         );
     }
 
-    let world_w = config.maze_generation.world_width;
-    let world_h = config.maze_generation.world_height;
-
     let mut out = Vec::with_capacity(picked.len());
     for &i in &picked {
         py_grid.grid[i].assignment = Some(place_as);
-        let col = (i as u32) % (py_grid.columns as u32);
-        let row = (i as u32) / (py_grid.columns as u32);
-        out.push(grid_to_world_xy(col, row, cell_size, world_w, world_h));
+        let (column, row) = (i % py_grid.columns, i / py_grid.columns);
+        out.extend(py_grid.world_center(column, row));
     }
 
-    out
-}
-
-// Returns cells overlapped by a world-space XZ AABB.
-fn overlapping_indexes(
-    aabb_min: Vec2,
-    aabb_max: Vec2,
-    cell_size: f32,
-    world_width: f32,
-    world_height: f32,
-) -> Vec<(u32, u32)> {
-    let grid_w = (world_width / cell_size).round() as i32;
-    let grid_h = (world_height / cell_size).round() as i32;
-
-    let half_w = world_width * 0.5;
-    let half_h = world_height * 0.5;
-
-    let min_c = (((aabb_min.x + half_w) / cell_size).floor() as i32).clamp(0, grid_w - 1);
-    let min_r = (((aabb_min.y + half_h) / cell_size).floor() as i32).clamp(0, grid_h - 1);
-
-    let max_c = ((((aabb_max.x + half_w) / cell_size).ceil() as i32) - 1).clamp(0, grid_w - 1);
-    let max_r = ((((aabb_max.y + half_h) / cell_size).ceil() as i32) - 1).clamp(0, grid_h - 1);
-
-    if max_c < min_c || max_r < min_r {
-        return Vec::new();
-    }
-
-    let mut out = Vec::with_capacity(((max_c - min_c + 1) * (max_r - min_r + 1)) as usize);
-    for r in min_r..=max_r {
-        for c in min_c..=max_c {
-            out.push((c as u32, r as u32));
-        }
-    }
     out
 }
 
@@ -271,7 +228,6 @@ pub fn spawn_capture_points(
 #[allow(clippy::type_complexity)]
 pub fn update_true_grid(
     true_grid: ResMut<TrueGrid>,
-    config: Res<MazeConfig>,
     segments: Res<WallSegments>,
     query_flag: Query<&GlobalTransform, With<Flag>>,
     query_cp: Query<&GlobalTransform, With<CapturePoint>>,
@@ -302,13 +258,7 @@ pub fn update_true_grid(
                 p0.y.max(p1.y) + WALL_THICKNESS * 0.5,
             );
 
-            let wall_indexes = overlapping_indexes(
-                aabb_bottom_left,
-                aabb_top_right,
-                config.agent.occupancy_grid_cell_size,
-                config.maze_generation.world_width,
-                config.maze_generation.world_height,
-            );
+            let wall_indexes = py_obj.overlapping_cells(aabb_bottom_left, aabb_top_right);
 
             for (ix, iy) in wall_indexes.iter().copied() {
                 py_obj.grid[(ix + iy * columns) as usize].assignment = Some(EntityType::Wall);
@@ -329,17 +279,10 @@ pub fn update_true_grid(
             transform.translation().x + 0.5,
             transform.translation().z + 0.5,
         );
-        let overlapping = overlapping_indexes(
-            aabb_min,
-            aabb_max,
-            config.agent.occupancy_grid_cell_size,
-            config.maze_generation.world_width,
-            config.maze_generation.world_height,
-        );
-
         Python::attach(|py| {
             let grid = true_grid.0.write().unwrap();
             let mut py_obj = grid.borrow_mut(py);
+            let overlapping = py_obj.overlapping_cells(aabb_min, aabb_max);
 
             for (col, row) in overlapping {
                 let idx = (row * (py_obj.columns as u32) + col) as usize;
@@ -361,17 +304,10 @@ pub fn update_true_grid(
             transform.translation().x + 0.5,
             transform.translation().z + 0.5,
         );
-        let overlapping = overlapping_indexes(
-            aabb_min,
-            aabb_max,
-            config.agent.occupancy_grid_cell_size,
-            config.maze_generation.world_width,
-            config.maze_generation.world_height,
-        );
-
         Python::attach(|py| {
             let grid = true_grid.0.write().unwrap();
             let mut py_obj = grid.borrow_mut(py);
+            let overlapping = py_obj.overlapping_cells(aabb_min, aabb_max);
 
             for (col, row) in overlapping {
                 let idx = (row * (py_obj.columns as u32) + col) as usize;
