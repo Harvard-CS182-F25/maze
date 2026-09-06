@@ -129,20 +129,40 @@ class GameResult:
         True if the run stopped because it hit the time limit rather than finishing early.
         """
     @property
-    def final_mapping_error(self) -> builtins.float:
+    def final_mapping_accuracy(self) -> builtins.float:
         r"""
-        Fraction of ground-truth cells the agent's map got wrong, in `[0, 1]`.
+        Fraction of ground-truth cells the agent's map classified correctly, in `[0, 1]`.
         """
     @property
-    def mapping_error_cells(self) -> tuple[builtins.int, builtins.int]:
+    def mapping_accuracy_cells(self) -> tuple[builtins.int, builtins.int]:
         r"""
-        `(wrong, total)` cell counts behind `final_mapping_error`.
+        `(correct, total)` cell counts behind `final_mapping_accuracy`.
         """
     @property
-    def mapping_error_milestones(self) -> builtins.list[tuple[builtins.float, typing.Optional[builtins.float]]]:
+    def final_free_recall(self) -> builtins.float:
         r"""
-        For each requested threshold, the first simulated time the mapping error dropped to or
-        below it, or `None` if it never did. In the order the thresholds were given.
+        Fraction of true free space cells classified as free, in `[0, 1]`.
+        """
+    @property
+    def free_recall_cells(self) -> tuple[builtins.int, builtins.int]:
+        r"""
+        `(correct, total)` free space cell counts behind `final_free_recall`.
+        """
+    @property
+    def final_wall_recall(self) -> builtins.float:
+        r"""
+        Fraction of true wall cells classified as walls, in `[0, 1]`.
+        """
+    @property
+    def wall_recall_cells(self) -> tuple[builtins.int, builtins.int]:
+        r"""
+        `(correct, total)` wall cell counts behind `final_wall_recall`.
+        """
+    @property
+    def mapping_accuracy_milestones(self) -> builtins.list[tuple[builtins.float, typing.Optional[builtins.float]]]:
+        r"""
+        For each requested threshold, the first simulated time mapping accuracy reached or
+        exceeded it, or `None` if it never did. In the order the thresholds were given.
         """
     @property
     def flag_capture_times(self) -> builtins.list[builtins.float]:
@@ -166,9 +186,9 @@ class GameResult:
         and the other metrics describe only the part that ran.
         """
     def __str__(self) -> builtins.str: ...
-    def time_to_mapping_error(self, threshold:builtins.float) -> typing.Optional[builtins.float]:
+    def time_to_mapping_accuracy(self, threshold:builtins.float) -> typing.Optional[builtins.float]:
         r"""
-        The first simulated time the mapping error reached `threshold`, or `None` if it never did.
+        The first simulated time mapping accuracy reached `threshold`, or `None` if it never did.
         Only thresholds that were requested for the run are known.
         """
     def __repr__(self) -> builtins.str: ...
@@ -433,7 +453,7 @@ def parse_config(config_path:builtins.str) -> MazeConfig: ...
 
 def run(config:MazeConfig, policy:typing.Any) -> typing.Optional[StateQueue]: ...
 
-def run_headless(config:MazeConfig, policy:typing.Any, max_seconds:builtins.float=300.0, mapping_error_milestones:typing.Sequence[builtins.float]=[0.800000011920929, 0.6000000238418579, 0.4000000059604645, 0.20000000298023224], stop_on_all_flags_captured:builtins.bool=False) -> GameResult:
+def run_headless(config:MazeConfig, policy:typing.Any, max_seconds:builtins.float=300.0, mapping_accuracy_milestones:typing.Sequence[builtins.float]=[0.20000000298023224, 0.4000000059604645, 0.6000000238418579, 0.800000011920929], stop_on_all_flags_captured:builtins.bool=False) -> GameResult:
     r"""
     Play a whole game with no window, as fast as the policy can be evaluated, and return what
     happened.

@@ -14,7 +14,7 @@ use crate::core::MazeConfig;
 use crate::flag::{Flag, FlagCaptureCounts};
 use crate::occupancy_grid::{PlayerGrid, TrueGrid};
 use crate::python::policy::PolicyErrorSlot;
-use crate::scene::mapping_error;
+use crate::scene::mapping_metrics;
 
 /// The outcome of a headless run.
 #[gen_stub_pyclass]
@@ -29,18 +29,34 @@ pub struct GameResult {
     #[pyo3(get)]
     pub timed_out: bool,
 
-    /// Fraction of ground-truth cells the agent's map got wrong, in `[0, 1]`.
+    /// Fraction of ground-truth cells the agent's map classified correctly, in `[0, 1]`.
     #[pyo3(get)]
-    pub final_mapping_error: f32,
+    pub final_mapping_accuracy: f32,
 
-    /// `(wrong, total)` cell counts behind `final_mapping_error`.
+    /// `(correct, total)` cell counts behind `final_mapping_accuracy`.
     #[pyo3(get)]
-    pub mapping_error_cells: (u32, u32),
+    pub mapping_accuracy_cells: (u32, u32),
 
-    /// For each requested threshold, the first simulated time the mapping error dropped to or
-    /// below it, or `None` if it never did. In the order the thresholds were given.
+    /// Fraction of true free space cells classified as free, in `[0, 1]`.
     #[pyo3(get)]
-    pub mapping_error_milestones: Vec<(f32, Option<f32>)>,
+    pub final_free_recall: f32,
+
+    /// `(correct, total)` free space cell counts behind `final_free_recall`.
+    #[pyo3(get)]
+    pub free_recall_cells: (u32, u32),
+
+    /// Fraction of true wall cells classified as walls, in `[0, 1]`.
+    #[pyo3(get)]
+    pub final_wall_recall: f32,
+
+    /// `(correct, total)` wall cell counts behind `final_wall_recall`.
+    #[pyo3(get)]
+    pub wall_recall_cells: (u32, u32),
+
+    /// For each requested threshold, the first simulated time mapping accuracy reached or
+    /// exceeded it, or `None` if it never did. In the order the thresholds were given.
+    #[pyo3(get)]
+    pub mapping_accuracy_milestones: Vec<(f32, Option<f32>)>,
 
     /// Simulated time of each flag capture, in order.
     #[pyo3(get)]
@@ -66,10 +82,10 @@ pub struct GameResult {
 #[gen_stub_pymethods]
 #[pymethods]
 impl GameResult {
-    /// The first simulated time the mapping error reached `threshold`, or `None` if it never did.
+    /// The first simulated time mapping accuracy reached `threshold`, or `None` if it never did.
     /// Only thresholds that were requested for the run are known.
-    pub fn time_to_mapping_error(&self, threshold: f32) -> Option<f32> {
-        self.mapping_error_milestones
+    pub fn time_to_mapping_accuracy(&self, threshold: f32) -> Option<f32> {
+        self.mapping_accuracy_milestones
             .iter()
             .find(|(t, _)| (*t - threshold).abs() < f32::EPSILON)
             .and_then(|(_, time)| *time)
@@ -82,7 +98,7 @@ impl GameResult {
 
 impl std::fmt::Display for GameResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (wrong, total) = self.mapping_error_cells;
+        let (correct, total) = self.mapping_accuracy_cells;
         writeln!(f, "GameResult (maze seed {})", self.maze_seed)?;
         writeln!(
             f,
@@ -92,21 +108,37 @@ impl std::fmt::Display for GameResult {
         )?;
         writeln!(
             f,
-            "  mapping error      {:.1}% ({}/{} cells)",
-            self.final_mapping_error * 100.0,
-            wrong,
+            "  mapping accuracy   {:.1}% ({}/{} cells)",
+            self.final_mapping_accuracy * 100.0,
+            correct,
+            total
+        )?;
+        let (correct, total) = self.free_recall_cells;
+        writeln!(
+            f,
+            "    free space recall {:.1}% ({}/{} cells)",
+            self.final_free_recall * 100.0,
+            correct,
+            total
+        )?;
+        let (correct, total) = self.wall_recall_cells;
+        writeln!(
+            f,
+            "    wall recall       {:.1}% ({}/{} cells)",
+            self.final_wall_recall * 100.0,
+            correct,
             total
         )?;
 
-        for (threshold, time) in &self.mapping_error_milestones {
+        for (threshold, time) in &self.mapping_accuracy_milestones {
             match time {
                 Some(time) => writeln!(
                     f,
-                    "    <= {:>5.1}%       at {:.1}s",
+                    "    >= {:>5.1}%       at {:.1}s",
                     threshold * 100.0,
                     time
                 )?,
-                None => writeln!(f, "    <= {:>5.1}%       never reached", threshold * 100.0)?,
+                None => writeln!(f, "    >= {:>5.1}%       never reached", threshold * 100.0)?,
             }
         }
 
@@ -138,8 +170,8 @@ impl std::fmt::Display for GameResult {
 pub struct MetricsConfig {
     /// Simulated seconds to run for.
     pub max_seconds: f32,
-    /// Mapping-error thresholds to time, as fractions in `[0, 1]`.
-    pub mapping_error_milestones: Vec<f32>,
+    /// Mapping-accuracy thresholds to time, as fractions in `[0, 1]`.
+    pub mapping_accuracy_milestones: Vec<f32>,
     /// Stop as soon as every flag has been captured, rather than using the full time budget.
     pub stop_on_all_flags_captured: bool,
     pub result_sender: Sender<GameResult>,
@@ -148,11 +180,15 @@ pub struct MetricsConfig {
 /// Metrics accumulated so far.
 #[derive(Resource, Default)]
 pub struct MetricsState {
-    mapping_error_milestone_times: Vec<Option<f32>>,
+    mapping_accuracy_milestone_times: Vec<Option<f32>>,
     flag_capture_times: Vec<f32>,
     last_capture_count: u32,
-    mapping_error_cells: (u32, u32),
-    final_mapping_error: f32,
+    mapping_accuracy_cells: (u32, u32),
+    final_mapping_accuracy: f32,
+    free_recall_cells: (u32, u32),
+    final_free_recall: f32,
+    wall_recall_cells: (u32, u32),
+    final_wall_recall: f32,
     elapsed_seconds: f32,
     timed_out: bool,
     maze_seed: u32,
@@ -179,7 +215,8 @@ fn init_metrics(
     metrics_config: Res<MetricsConfig>,
     config: Res<MazeConfig>,
 ) {
-    state.mapping_error_milestone_times = vec![None; metrics_config.mapping_error_milestones.len()];
+    state.mapping_accuracy_milestone_times =
+        vec![None; metrics_config.mapping_accuracy_milestones.len()];
     state.maze_seed = config.maze_generation.seed.unwrap_or(0);
 }
 
@@ -197,14 +234,22 @@ fn record_metrics(
     // Counted here rather than at startup so the flag entities are guaranteed to exist.
     state.total_flags = flags.iter().count() as u32;
 
-    let (wrong, total) = mapping_error(&player_grid, &true_grid);
-    let error = (wrong as f32) / total.max(1) as f32;
-    state.mapping_error_cells = (wrong, total);
-    state.final_mapping_error = error;
+    let metrics = mapping_metrics(&player_grid, &true_grid);
+    let accuracy = metrics.accuracy();
+    state.mapping_accuracy_cells = (metrics.correct_cells, metrics.total_cells);
+    state.final_mapping_accuracy = accuracy;
+    state.free_recall_cells = (metrics.free_correct_cells, metrics.free_cells);
+    state.final_free_recall = metrics.free_recall();
+    state.wall_recall_cells = (metrics.wall_correct_cells, metrics.wall_cells);
+    state.final_wall_recall = metrics.wall_recall();
 
-    for (index, threshold) in metrics_config.mapping_error_milestones.iter().enumerate() {
-        if state.mapping_error_milestone_times[index].is_none() && error <= *threshold {
-            state.mapping_error_milestone_times[index] = Some(now);
+    for (index, threshold) in metrics_config
+        .mapping_accuracy_milestones
+        .iter()
+        .enumerate()
+    {
+        if state.mapping_accuracy_milestone_times[index].is_none() && accuracy >= *threshold {
+            state.mapping_accuracy_milestone_times[index] = Some(now);
         }
     }
 
@@ -248,13 +293,17 @@ fn report_result(
     let result = GameResult {
         elapsed_seconds: state.elapsed_seconds,
         timed_out: state.timed_out,
-        final_mapping_error: state.final_mapping_error,
-        mapping_error_cells: state.mapping_error_cells,
-        mapping_error_milestones: metrics_config
-            .mapping_error_milestones
+        final_mapping_accuracy: state.final_mapping_accuracy,
+        mapping_accuracy_cells: state.mapping_accuracy_cells,
+        final_free_recall: state.final_free_recall,
+        free_recall_cells: state.free_recall_cells,
+        final_wall_recall: state.final_wall_recall,
+        wall_recall_cells: state.wall_recall_cells,
+        mapping_accuracy_milestones: metrics_config
+            .mapping_accuracy_milestones
             .iter()
             .copied()
-            .zip(state.mapping_error_milestone_times.iter().copied())
+            .zip(state.mapping_accuracy_milestone_times.iter().copied())
             .collect(),
         flag_capture_times: state.flag_capture_times.clone(),
         flags_captured: state.last_capture_count,

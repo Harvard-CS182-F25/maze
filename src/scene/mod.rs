@@ -9,7 +9,7 @@ use pyo3_stub_gen::derive::gen_stub_pyclass;
 use serde::{Deserialize, Serialize};
 
 pub use components::*;
-pub use systems::mapping_error;
+pub use systems::mapping_metrics;
 pub use visual::*;
 
 use crate::core::{MazeConfig, StartupSets};
@@ -62,13 +62,13 @@ impl Plugin for ScenePlugin {
             (systems::setup_scene, systems::spawn_walls).in_set(StartupSets::Walls),
         );
         // These only write to HUD text entities, which do not exist in headless mode — and
-        // `update_mapping_error` takes the GIL every frame, so running it there is pure waste.
+        // `update_mapping_metrics` takes the GIL every frame, so running it there is pure waste.
         app.add_systems(
             Update,
             (
                 systems::update_time,
                 systems::update_true_position,
-                systems::update_mapping_error,
+                systems::update_mapping_metrics,
                 systems::update_flag_progress,
             )
                 .run_if(|config: Res<MazeConfig>| !config.headless),

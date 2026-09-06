@@ -27,7 +27,7 @@ pub struct EstimatedPositionText;
 
 #[derive(Debug, Clone, Copy, Default, Component, Reflect)]
 #[reflect(Component)]
-pub struct MappingErrorText;
+pub struct MappingMetricsText;
 
 #[derive(Debug, Clone, Copy, Default, Component, Reflect)]
 #[reflect(Component)]

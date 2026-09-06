@@ -11,8 +11,8 @@ use crate::{
     occupancy_grid::{LOGIT_CLAMP, PlayerGrid, TrueGrid},
     python::game_state::{EntityType, SensorRng},
     scene::{
-        COLLISION_LAYER_WALL, EstimatedPositionText, FlagProgressText, MappingErrorText, TimeText,
-        TruePositionText, WALL_HEIGHT, WALL_THICKNESS, WallBundle, WallGraphicsAssets,
+        COLLISION_LAYER_WALL, EstimatedPositionText, FlagProgressText, MappingMetricsText,
+        TimeText, TruePositionText, WALL_HEIGHT, WALL_THICKNESS, WallBundle, WallGraphicsAssets,
         WallSegments,
     },
 };
@@ -234,10 +234,10 @@ pub fn setup_hud(mut commands: Commands, config: Res<MazeConfig>, time: Res<Time
             ));
 
             parent.spawn((
-                Text::new("Mapping Error: n/a"),
+                Text::new("Mapping Accuracy: n/a\nFree Space Recall: n/a\nWall Recall: n/a"),
                 line_font.clone(),
                 line_layout,
-                MappingErrorText,
+                MappingMetricsText,
             ));
 
             parent.spawn(Node {
@@ -321,47 +321,142 @@ pub fn update_flag_progress(
     }
 }
 
-/// Counts `(wrong, total)` cells between the player's occupancy grid and the ground truth.
-///
-/// Only ground-truth cells that have been assigned and are neither a flag nor a capture point
-/// count towards the total — flags and capture points move, so holding students to them would be
-/// unfair. This is the single definition of "mapping error": both the HUD and the headless
-/// evaluation metrics call it.
-pub fn mapping_error(player_grid: &PlayerGrid, true_grid: &TrueGrid) -> (u32, u32) {
+/// Counts mapping predictions against the ground truth.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MappingMetrics {
+    pub correct_cells: u32,
+    pub total_cells: u32,
+    pub free_correct_cells: u32,
+    pub free_cells: u32,
+    pub wall_correct_cells: u32,
+    pub wall_cells: u32,
+}
+
+impl MappingMetrics {
+    pub fn accuracy(self) -> f32 {
+        ratio(self.correct_cells, self.total_cells)
+    }
+
+    pub fn free_recall(self) -> f32 {
+        ratio(self.free_correct_cells, self.free_cells)
+    }
+
+    pub fn wall_recall(self) -> f32 {
+        ratio(self.wall_correct_cells, self.wall_cells)
+    }
+}
+
+fn ratio(numerator: u32, denominator: u32) -> f32 {
+    numerator as f32 / denominator.max(1) as f32
+}
+
+fn mapping_metrics_from_assignments(
+    assignments: impl IntoIterator<Item = (Option<EntityType>, Option<EntityType>)>,
+) -> MappingMetrics {
+    let mut metrics = MappingMetrics::default();
+
+    for (prediction, truth) in assignments {
+        let Some(truth) = truth else {
+            continue;
+        };
+        if matches!(truth, EntityType::Flag | EntityType::CapturePoint) {
+            continue;
+        }
+
+        metrics.total_cells += 1;
+        if prediction == Some(truth) {
+            metrics.correct_cells += 1;
+        }
+
+        match truth {
+            EntityType::Free => {
+                metrics.free_cells += 1;
+                if prediction == Some(EntityType::Free) {
+                    metrics.free_correct_cells += 1;
+                }
+            }
+            EntityType::Wall => {
+                metrics.wall_cells += 1;
+                if prediction == Some(EntityType::Wall) {
+                    metrics.wall_correct_cells += 1;
+                }
+            }
+            EntityType::Flag | EntityType::CapturePoint | EntityType::Unknown => {}
+        }
+    }
+
+    metrics
+}
+
+pub fn mapping_metrics(player_grid: &PlayerGrid, true_grid: &TrueGrid) -> MappingMetrics {
     Python::attach(|py| {
         let player_grid = player_grid.0.read().unwrap();
         let true_grid = true_grid.0.read().unwrap();
         let player_grid = player_grid.borrow(py);
         let true_grid = true_grid.borrow(py);
-
-        let mut wrong = 0;
-        let mut total = 0;
-        for (player_entry, true_entry) in player_grid.grid.iter().zip(true_grid.grid.iter()) {
-            if let Some(true_entity_type) = true_entry.assignment
-                && true_entity_type != EntityType::Flag
-                && true_entity_type != EntityType::CapturePoint
-            {
-                total += 1;
-                if player_entry.assignment != true_entry.assignment {
-                    wrong += 1;
-                }
-            }
-        }
-
-        (wrong, total)
+        mapping_metrics_from_assignments(
+            player_grid
+                .grid
+                .iter()
+                .zip(true_grid.grid.iter())
+                .map(|(prediction, truth)| (prediction.assignment, truth.assignment)),
+        )
     })
 }
 
-pub fn update_mapping_error(
+pub fn update_mapping_metrics(
     player_grid: Res<PlayerGrid>,
     true_grid: Res<TrueGrid>,
-    mut query: Query<&mut Text, With<MappingErrorText>>,
+    mut query: Query<&mut Text, With<MappingMetricsText>>,
 ) {
-    let (wrong, total) = mapping_error(&player_grid, &true_grid);
-    let error_rate = (wrong as f32) / total.max(1) as f32 * 100.0;
+    let metrics = mapping_metrics(&player_grid, &true_grid);
 
     for mut text in query.iter_mut() {
-        text.0 = format!("Mapping Error: {error_rate:.1}%");
+        text.0 = format!(
+            "Mapping Accuracy: {:.1}%\nFree Space Recall: {:.1}%\nWall Recall: {:.1}%",
+            metrics.accuracy() * 100.0,
+            metrics.free_recall() * 100.0,
+            metrics.wall_recall() * 100.0,
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mapping_metrics_from_assignments;
+    use crate::python::game_state::EntityType;
+
+    #[test]
+    fn mapping_metrics_track_overall_accuracy_and_per_class_recall() {
+        let metrics = mapping_metrics_from_assignments([
+            (Some(EntityType::Free), Some(EntityType::Free)),
+            (Some(EntityType::Wall), Some(EntityType::Free)),
+            (Some(EntityType::Wall), Some(EntityType::Wall)),
+            (None, Some(EntityType::Wall)),
+            (Some(EntityType::Free), Some(EntityType::Flag)),
+            (Some(EntityType::Wall), Some(EntityType::CapturePoint)),
+        ]);
+
+        assert_eq!(metrics.correct_cells, 2);
+        assert_eq!(metrics.total_cells, 4);
+        assert_eq!(metrics.free_correct_cells, 1);
+        assert_eq!(metrics.free_cells, 2);
+        assert_eq!(metrics.wall_correct_cells, 1);
+        assert_eq!(metrics.wall_cells, 2);
+        assert_eq!(metrics.accuracy(), 0.5);
+        assert_eq!(metrics.free_recall(), 0.5);
+        assert_eq!(metrics.wall_recall(), 0.5);
+    }
+
+    #[test]
+    fn all_free_prediction_has_no_wall_recall() {
+        let metrics = mapping_metrics_from_assignments([
+            (Some(EntityType::Free), Some(EntityType::Free)),
+            (Some(EntityType::Free), Some(EntityType::Wall)),
+        ]);
+
+        assert_eq!(metrics.free_recall(), 1.0);
+        assert_eq!(metrics.wall_recall(), 0.0);
     }
 }
 

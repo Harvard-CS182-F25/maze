@@ -156,13 +156,13 @@ fn run(py: Python<'_>, config: MazeConfig, policy: Py<PyAny>) -> PyResult<Option
 /// skipping ahead — so a run is reproducible for a given maze seed.
 #[gen_stub_pyfunction]
 #[pyfunction(name = "run_headless")]
-#[pyo3(signature = (config, policy, max_seconds = 300.0, mapping_error_milestones = vec![0.8, 0.6, 0.4, 0.2], stop_on_all_flags_captured = false))]
+#[pyo3(signature = (config, policy, max_seconds = 300.0, mapping_accuracy_milestones = vec![0.2, 0.4, 0.6, 0.8], stop_on_all_flags_captured = false))]
 fn run_headless(
     py: Python<'_>,
     config: MazeConfig,
     policy: Py<PyAny>,
     max_seconds: f32,
-    mapping_error_milestones: Vec<f32>,
+    mapping_accuracy_milestones: Vec<f32>,
     stop_on_all_flags_captured: bool,
 ) -> PyResult<GameResult> {
     if max_seconds <= 0.0 {
@@ -180,7 +180,7 @@ fn run_headless(
     let (tx_result, rx_result) = crossbeam_channel::bounded::<GameResult>(1);
     let metrics_config = MetricsConfig {
         max_seconds,
-        mapping_error_milestones,
+        mapping_accuracy_milestones,
         stop_on_all_flags_captured,
         result_sender: tx_result,
     };
