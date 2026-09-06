@@ -4,7 +4,7 @@ use maze_generator::prelude::*;
 use maze_generator::recursive_backtracking::RbGenerator;
 use pyo3::prelude::*;
 
-use crate::python::policy::PolicyCost;
+use crate::python::policy::PolicyDuration;
 use crate::{
     agent::{Agent, COLLISION_LAYER_AGENT},
     core::MazeConfig,
@@ -13,7 +13,7 @@ use crate::{
     python::game_state::{EntityType, SensorRng},
     scene::{
         COLLISION_LAYER_WALL, EstimatedPositionText, FlagProgressText, MappingMetricsText,
-        SimulationSpeedText, TimeText, TruePositionText, WALL_HEIGHT, WALL_THICKNESS, WallBundle,
+        PolicyDurationText, TimeText, TruePositionText, WALL_HEIGHT, WALL_THICKNESS, WallBundle,
         WallGraphicsAssets, WallSegments,
     },
 };
@@ -179,10 +179,10 @@ pub fn setup_hud(mut commands: Commands, config: Res<MazeConfig>, time: Res<Time
             ));
 
             parent.spawn((
-                Text::new("Speed: n/a"),
+                Text::new("Slowdown: n/a"),
                 line_font.clone(),
                 line_layout,
-                SimulationSpeedText,
+                PolicyDurationText,
             ));
 
             parent.spawn((
@@ -287,44 +287,37 @@ pub fn update_time(mut query: Query<&mut Text, With<TimeText>>, time: Res<Time>)
     }
 }
 
-/// Reports how fast simulated time is advancing against the wall clock, and what the policy costs.
+/// Reports how long `get_action` takes, and by how much it is slowing the game down.
 ///
-/// The simulation waits for `get_action` rather than skipping ahead, so a slow policy shows up as
-/// the whole game running in slow motion. Without this the only symptom is an agent that seems to
-/// crawl, which reads as a bug in the agent.
-pub fn update_simulation_speed(
+/// The simulation waits for `get_action` before advancing, so each call has `1 / policy_hz` of
+/// real time to spare if the game is to be drawn at full speed. Overrunning that does not affect
+/// the score — simulated time is unchanged — but it drags the game into slow motion, and the only
+/// other symptom is an agent that appears to crawl, which reads as a bug in the agent.
+pub fn update_policy_duration(
     real_time: Res<Time<Real>>,
-    simulated_time: Res<Time<Fixed>>,
-    policy_cost: Option<Res<PolicyCost>>,
-    mut previous_simulated: Local<Option<f32>>,
-    mut window: Local<(f32, f32)>,
-    mut query: Query<&mut Text, With<SimulationSpeedText>>,
+    config: Res<MazeConfig>,
+    policy_duration: Option<Res<PolicyDuration>>,
+    mut since_refresh: Local<f32>,
+    mut query: Query<&mut Text, With<PolicyDurationText>>,
 ) {
-    /// Long enough for the ratio to settle, and to keep the number readable rather than flickering.
-    const WINDOW_SECONDS: f32 = 0.5;
+    /// Long enough to keep the reading from flickering.
+    const REFRESH_SECONDS: f32 = 0.5;
 
-    let now = simulated_time.elapsed_secs();
-    let Some(previous) = previous_simulated.replace(now) else {
+    let (Some(policy_duration), Some(policy_hz)) =
+        (policy_duration, config.agent.active_policy_hz())
+    else {
         return;
     };
 
-    // Totals over a window rather than an average of per-frame ratios: a frame that runs no fixed
-    // tick and one that runs two are not equally weighted samples, so averaging their ratios reads
-    // low even when the simulation is keeping up.
-    let (simulated_elapsed, real_elapsed) = &mut *window;
-    *simulated_elapsed += now - previous;
-    *real_elapsed += real_time.delta_secs();
-    if *real_elapsed < WINDOW_SECONDS {
+    *since_refresh += real_time.delta_secs();
+    if *since_refresh < REFRESH_SECONDS {
         return;
     }
+    *since_refresh = 0.0;
 
-    let speed = format!("Speed: {:.2}x", *simulated_elapsed / *real_elapsed);
-    *window = (0.0, 0.0);
-
-    let line = match policy_cost.map(|cost| cost.smoothed_seconds) {
-        Some(seconds) => format!("{speed} (policy {:.1}ms)", seconds * 1000.0),
-        None => speed,
-    };
+    let seconds = policy_duration.smoothed_seconds;
+    let slowdown = seconds * policy_hz;
+    let line = format!("Slowdown: {slowdown:.1}x");
 
     for mut text in query.iter_mut() {
         text.0 = line.clone();

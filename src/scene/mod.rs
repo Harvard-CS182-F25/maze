@@ -99,7 +99,7 @@ impl Plugin for ScenePlugin {
             Update,
             (
                 systems::update_time,
-                systems::update_simulation_speed,
+                systems::update_policy_duration,
                 systems::update_true_position,
                 systems::update_mapping_metrics,
                 systems::update_flag_progress,

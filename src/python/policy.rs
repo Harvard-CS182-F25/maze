@@ -57,10 +57,11 @@ struct PolicyBridge {
 /// One policy tick: the observation, the grid the agent writes into, and elapsed simulated time.
 type PolicyRequest = (GameState, Arc<RwLock<Py<OccupancyGrid>>>, f32);
 
-/// How long the simulation spends waiting on one `get_action` call, smoothed. In lockstep this is
-/// the policy's own cost, and it is what decides whether the game can keep up with real time.
+/// How long the simulation spends waiting on one `get_action` call, smoothed. The simulation does
+/// not advance until the call returns, so this is what decides whether the game can be drawn at
+/// full speed.
 #[derive(Resource, Default)]
-pub struct PolicyCost {
+pub struct PolicyDuration {
     pub smoothed_seconds: f32,
 }
 
@@ -141,7 +142,7 @@ impl Plugin for PythonPolicyBridgePlugin {
             elapsed_since_dispatch: 0.0,
             awaiting_action: false,
         });
-        app.init_resource::<PolicyCost>();
+        app.init_resource::<PolicyDuration>();
 
         app.add_systems(
             FixedUpdate,
@@ -316,7 +317,7 @@ fn apply_actions(
     bridge: Option<Res<Bridge>>,
     config: Res<MazeConfig>,
     mut schedule: ResMut<PolicySchedule>,
-    mut policy_cost: ResMut<PolicyCost>,
+    mut policy_duration: ResMut<PolicyDuration>,
     mut movement_event_writer: MessageWriter<MovementMessage>,
     mut pickup_event_writer: MessageWriter<FlagPickupMessage>,
     mut drop_event_writer: MessageWriter<FlagDropMessage>,
@@ -350,7 +351,7 @@ fn apply_actions(
     let action = match received {
         Ok(action) => {
             let waited = waited_from.elapsed().as_secs_f32();
-            policy_cost.smoothed_seconds += (waited - policy_cost.smoothed_seconds) * 0.1;
+            policy_duration.smoothed_seconds += (waited - policy_duration.smoothed_seconds) * 0.1;
             action
         }
         Err(RecvTimeoutError::Timeout) => {

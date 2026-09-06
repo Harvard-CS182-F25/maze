@@ -19,7 +19,7 @@ pub struct TimeText;
 
 #[derive(Debug, Clone, Copy, Default, Component, Reflect)]
 #[reflect(Component)]
-pub struct SimulationSpeedText;
+pub struct PolicyDurationText;
 
 #[derive(Debug, Clone, Copy, Default, Component, Reflect)]
 #[reflect(Component)]
