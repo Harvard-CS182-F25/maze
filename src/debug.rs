@@ -48,8 +48,9 @@ fn paused(time: Res<Time<Virtual>>) -> bool {
     time.is_paused()
 }
 
-/// Advances the whole simulation — physics, the policy tick and the clock — by one `Time<Fixed>`
-/// step while paused.
+/// Advances the clock, and with it physics, by one `Time<Fixed>` step while paused. The policy only
+/// runs on the steps its own rate lands on, so below the simulation rate most steps move physics
+/// alone.
 fn step(mut virtual_time: ResMut<Time<Virtual>>, fixed_time: Res<Time<Fixed>>) {
     virtual_time.advance_by(fixed_time.delta());
 }

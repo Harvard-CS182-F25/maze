@@ -37,6 +37,10 @@ pub struct MazeConfig {
     pub headless: bool,
 }
 
+/// The fixed rate the simulation advances at. The policy is queried on whichever of these ticks
+/// its own `policy_hz` lands on, so physics behaves the same however often the policy runs.
+pub(crate) const SIMULATION_HZ: f32 = 60.0;
+
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StartupSets {
     Walls,
@@ -55,12 +59,29 @@ pub enum SimulationSets {
     Metrics,
 }
 
+impl MazeConfig {
+    /// Checks the rules that span fields, which only a run can settle. Parsing checks the
+    /// sub-configs on their own, since a caller may still set `teleop` before running.
+    pub(crate) fn validate(&self) -> Result<(), String> {
+        self.agent.validate()?;
+        if self.agent.active_policy_hz().is_none() && (self.headless || !self.teleop) {
+            return Err(
+                "agent.policy_hz = 0 disables the policy, which only works with windowed teleop"
+                    .to_string(),
+            );
+        }
+        Ok(())
+    }
+}
+
 #[gen_stub_pymethods]
 #[pymethods]
 impl MazeConfig {
-    /// When true the agent is driven by the keyboard: `Arrows` or `WASD` to move, `Space` to pick
-    /// up and drop flags. The Python policy still runs every tick so a mapping agent keeps building
-    /// its occupancy grid while you drive, but its actions are ignored.
+    /// Drive the agent from the keyboard: `Arrows` or `WASD` to move, `Space` to pick up and drop
+    /// flags. The policy is still queried, so a mapping agent keeps building its occupancy grid
+    /// while you drive, but its actions are ignored. To skip the policy entirely — a teleop
+    /// demonstration with an agent that is not written yet — set `agent.policy_hz` to zero in the
+    /// config file.
     #[getter]
     fn teleop(&self) -> bool {
         self.teleop
@@ -155,5 +176,20 @@ mod tests {
         assert!(serde_yaml::from_str::<MazeConfig>("camera:\n  scale: -0.15\n").is_err());
         assert!(serde_yaml::from_str::<MazeConfig>("capture_points:\n  number: 1\n").is_err());
         assert!(serde_yaml::from_str::<MazeConfig>("maze_generation:\n  width: 100\n").is_err());
+    }
+
+    #[test]
+    fn disabled_policy_requires_graphical_teleop() {
+        let mut config = MazeConfig::default();
+        config.agent.policy_hz = 0.0;
+        config.teleop = true;
+        assert!(config.validate().is_ok());
+
+        config.teleop = false;
+        assert!(config.validate().is_err());
+
+        config.teleop = true;
+        config.headless = true;
+        assert!(config.validate().is_err());
     }
 }

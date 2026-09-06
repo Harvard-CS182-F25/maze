@@ -53,9 +53,17 @@ class AgentConfig:
     @max_speed.setter
     def max_speed(self, value: builtins.float) -> None: ...
     @property
-    def policy_hz(self) -> builtins.float: ...
+    def policy_hz(self) -> builtins.float:
+        r"""
+        How often `get_action` is called, in Hz. Zero disables the policy entirely, which is only
+        useful for a keyboard-only teleop demonstration.
+        """
     @policy_hz.setter
-    def policy_hz(self, value: builtins.float) -> None: ...
+    def policy_hz(self, value: builtins.float) -> None:
+        r"""
+        How often `get_action` is called, in Hz. Zero disables the policy entirely, which is only
+        useful for a keyboard-only teleop demonstration.
+        """
     @property
     def position_stddev(self) -> builtins.float: ...
     @position_stddev.setter
@@ -282,9 +290,11 @@ class MazeConfig:
     @property
     def teleop(self) -> builtins.bool:
         r"""
-        When true the agent is driven by the keyboard: `Arrows` or `WASD` to move, `Space` to pick
-        up and drop flags. The Python policy still runs every tick so a mapping agent keeps building
-        its occupancy grid while you drive, but its actions are ignored.
+        Drive the agent from the keyboard: `Arrows` or `WASD` to move, `Space` to pick up and drop
+        flags. The policy is still queried, so a mapping agent keeps building its occupancy grid
+        while you drive, but its actions are ignored. To skip the policy entirely — a teleop
+        demonstration with an agent that is not written yet — set `agent.policy_hz` to zero in the
+        config file.
         """
     @teleop.setter
     def teleop(self, value: builtins.bool) -> None: ...
@@ -459,8 +469,8 @@ def run_headless(config:MazeConfig, policy:typing.Any, max_seconds:builtins.floa
     happened.
     
     The clock is simulated: `max_seconds` counts simulated seconds, so a 300-second budget matches
-    the assignment's five-minute target regardless of how long the run actually takes. Every
-    simulated tick calls `get_action` exactly once — the sim waits for the policy rather than
-    skipping ahead — so a run is reproducible for a given maze seed.
+    the assignment's five-minute target regardless of how long the run actually takes. The
+    simulation waits for each `get_action` to return rather than skipping ahead, so a run is
+    reproducible for a given maze seed.
     """
 

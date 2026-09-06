@@ -3,9 +3,10 @@
 //!
 //! `Arrows` or `WASD` move; `Space` picks up and drops flags.
 //!
-//! The Python policy still runs every tick while teleop is enabled — a mapping agent keeps
-//! building its occupancy grid while a human drives — but `apply_actions` drops every policy action
-//! so the human remains in full control.
+//! The Python policy is still queried while teleop is enabled — a mapping agent keeps building its
+//! occupancy grid while a human drives — but `apply_actions` drops every policy action so the human
+//! remains in full control. Setting `agent.policy_hz` to zero skips the policy altogether, which is
+//! how an agent that is not written yet can still be driven around.
 
 use bevy::prelude::*;
 

@@ -96,8 +96,6 @@ fn adjust_speed(
     time.set_relative_speed(speed.multiplier());
 }
 
-/// Maze reads pause state from the virtual clock because that is the authoritative
-/// clock for both physics and policy evaluation here.
 fn spawn_indicators(mut commands: Commands, speed: Res<PlaybackSpeed>) {
     commands
         .spawn((

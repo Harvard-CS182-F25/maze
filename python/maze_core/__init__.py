@@ -12,8 +12,8 @@ class AgentProtocol(Protocol):
     def get_action(self, game_state: GameState, occupancy_grid: OccupancyGrid, dt: float) -> Action:
         """Called once per policy tick.
 
-        `occupancy_grid` is the grid the agent writes its map into. `dt` is always
-        `1 / policy_hz`. Pausing stops calls; a slow policy pauses simulation.
+        `occupancy_grid` is the grid the agent writes its map into. `dt` is the elapsed simulated
+        time since the previous query. Pausing stops calls; a slow policy pauses simulation.
         """
         ...
 

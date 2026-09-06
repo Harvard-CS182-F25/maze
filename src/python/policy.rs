@@ -57,8 +57,21 @@ struct PolicyBridge {
     pub error: PolicyErrorSlot,
 }
 
-/// One policy tick: the observation, the grid the agent writes into, and the fixed tick duration.
+/// One policy tick: the observation, the grid the agent writes into, and elapsed simulated time.
 type PolicyRequest = (GameState, Arc<RwLock<Py<OccupancyGrid>>>, f32);
+
+/// When the policy is next due, in simulated time. The simulation ticks at a fixed rate; the
+/// policy runs on whichever of those ticks its own `policy_hz` lands on.
+#[derive(Resource)]
+struct PolicySchedule {
+    interval_secs: f32,
+    /// Simulated seconds until the next query, counted down by each fixed tick.
+    until_next_query: f32,
+    /// Simulated seconds since the last query, which is the `dt` the policy is handed.
+    elapsed_since_dispatch: f32,
+    /// A request is in flight, so `apply_actions` still owes it a matching receive.
+    awaiting_action: bool,
+}
 
 #[derive(Clone)]
 #[allow(clippy::type_complexity)]
@@ -73,11 +86,19 @@ pub struct TestHarnessBridge {
 
 pub struct PythonPolicyBridgePlugin {
     pub agent_policy: Py<PyAny>,
+    pub policy_hz: Option<f32>,
     pub test_harness: Option<TestHarnessBridge>,
 }
 
 impl Plugin for PythonPolicyBridgePlugin {
     fn build(&self, app: &mut App) {
+        let Some(policy_hz) = self.policy_hz else {
+            // Worth saying out loud: without it, a finished agent whose `get_action` is simply
+            // never called looks like a bug in the agent rather than a setting in the config.
+            info!("agent.policy_hz is 0, so the policy is disabled and will never be queried");
+            return;
+        };
+
         let error_slot = PolicyErrorSlot::default();
         let agent_bridge = Python::attach(|py| {
             PolicyBridge::start(self.agent_policy.clone_ref(py), error_slot.clone())
@@ -89,8 +110,15 @@ impl Plugin for PythonPolicyBridgePlugin {
             agent_bridge,
             test_bridge: self.test_harness.clone(),
         });
+        let interval_secs = policy_hz.recip();
+        app.insert_resource(PolicySchedule {
+            interval_secs,
+            until_next_query: interval_secs,
+            elapsed_since_dispatch: 0.0,
+            awaiting_action: false,
+        });
 
-        // Each fixed tick observes the world, then applies that tick's policy action.
+        // A policy tick observes the world, then applies its matching action.
         app.add_systems(
             FixedUpdate,
             (send_game_states, apply_actions)
@@ -186,6 +214,7 @@ impl PolicyBridge {
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn send_game_states(
     time: Res<Time<Fixed>>,
+    mut schedule: ResMut<PolicySchedule>,
     scores: Res<FlagCaptureCounts>,
     config: Res<MazeConfig>,
     mut sensor_rng: ResMut<SensorRng>,
@@ -206,6 +235,17 @@ fn send_game_states(
     kinds: Query<(Option<&Wall>, Option<&Flag>, Option<&CapturePoint>)>,
     flags: Query<&Flag>,
 ) {
+    let fixed_dt = time.delta_secs();
+    schedule.elapsed_since_dispatch += fixed_dt;
+    schedule.until_next_query -= fixed_dt;
+    // The tolerance absorbs float error in the countdown: when `policy_hz` is the simulation rate
+    // the remainder lands a few ulps above zero, and a bare `> 0.0` would drop those queries.
+    if schedule.until_next_query > f32::EPSILON {
+        return;
+    }
+    // Keep the fractional remainder so rates that do not divide 60 Hz stay on cadence.
+    schedule.until_next_query += schedule.interval_secs;
+
     let Some(bridge) = bridge else {
         return;
     };
@@ -229,12 +269,15 @@ fn send_game_states(
         world_height: config.maze_generation.world_height,
     };
 
-    let dt = time.delta_secs();
+    let dt = schedule.elapsed_since_dispatch;
     let request = (noisy_state, player_grid.0.clone(), dt);
 
+    // A disconnected worker still needs `apply_actions` to observe the failure and stop the game.
+    schedule.awaiting_action = true;
     if bridge.agent_bridge.tx_state.send(request).is_err() {
         return;
     }
+    schedule.elapsed_since_dispatch = 0.0;
 
     if let Some(test) = &bridge.test_bridge {
         match test
@@ -252,12 +295,18 @@ fn send_game_states(
 fn apply_actions(
     bridge: Option<Res<Bridge>>,
     config: Res<MazeConfig>,
+    mut schedule: ResMut<PolicySchedule>,
     agents: Query<(Entity, &Agent)>,
     mut movement_event_writer: MessageWriter<MovementMessage>,
     mut pickup_event_writer: MessageWriter<FlagPickupMessage>,
     mut drop_event_writer: MessageWriter<FlagDropMessage>,
     mut exit: MessageWriter<AppExit>,
 ) {
+    if !schedule.awaiting_action {
+        return;
+    }
+    schedule.awaiting_action = false;
+
     let Some(bridge) = bridge else {
         return;
     };

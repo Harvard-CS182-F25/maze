@@ -26,7 +26,7 @@ use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 
-use crate::core::MazeConfig;
+use crate::core::{MazeConfig, SIMULATION_HZ};
 use crate::occupancy_grid::OccupancyGrid;
 use crate::python::game_state::GameState;
 use crate::python::metrics::{GameResult, MetricsConfig, MetricsPlugin};
@@ -42,6 +42,10 @@ fn parse_config(config_path: &str) -> PyResult<MazeConfig> {
     let config: MazeConfig = serde_yaml::from_str(&config_str)
         .map_err(|e| PyRuntimeError::new_err(format!("Failed to parse config file: {}", e)))?;
 
+    // Only the per-field rules: a config that parses may still be finished off in Python, so
+    // whether `teleop` and `headless` agree with `policy_hz` is left for `run`/`run_headless`.
+    config.agent.validate().map_err(PyValueError::new_err)?;
+
     Ok(config)
 }
 
@@ -52,7 +56,7 @@ fn generate_app(
 ) -> App {
     let mut app = App::new();
 
-    let policy_hz = config.agent.effective_policy_hz();
+    let policy_hz = config.agent.active_policy_hz();
 
     if config.headless {
         // No window or GPU, but physics and flag parenting still need transforms and scene assets.
@@ -67,7 +71,7 @@ fn generate_app(
 
         // One app update advances exactly one simulation tick.
         app.insert_resource(TimeUpdateStrategy::ManualDuration(
-            std::time::Duration::from_secs_f64(1.0 / policy_hz as f64),
+            std::time::Duration::from_secs_f64(1.0 / SIMULATION_HZ as f64),
         ));
     } else {
         app.add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -81,7 +85,7 @@ fn generate_app(
         app.add_systems(Update, force_focus);
     }
 
-    app.insert_resource(Time::<Fixed>::from_hz(policy_hz as f64));
+    app.insert_resource(Time::<Fixed>::from_hz(SIMULATION_HZ as f64));
     app.add_plugins((PhysicsPlugins::default(),));
 
     // The debug plugin pulls in egui and physics debug rendering, neither of which exists headless.
@@ -92,6 +96,7 @@ fn generate_app(
     app.add_plugins((
         PythonPolicyBridgePlugin {
             agent_policy: policy,
+            policy_hz,
             test_harness,
         },
         core::MazePlugin {
@@ -105,6 +110,8 @@ fn generate_app(
 #[gen_stub_pyfunction]
 #[pyfunction(name = "run")]
 fn run(py: Python<'_>, config: MazeConfig, policy: Py<PyAny>) -> PyResult<Option<StateQueue>> {
+    config.validate().map_err(PyValueError::new_err)?;
+
     if !config.headless {
         Python::detach(py, || {
             let mut app = generate_app(config, policy, None);
@@ -119,7 +126,10 @@ fn run(py: Python<'_>, config: MazeConfig, policy: Py<PyAny>) -> PyResult<Option
         )>(60);
         let (tx_stop, rx_stop) = crossbeam_channel::bounded::<()>(1);
 
-        let rate_hz = config.agent.effective_policy_hz();
+        let rate_hz = config
+            .agent
+            .active_policy_hz()
+            .expect("headless runs require an active policy");
         let join = std::thread::spawn(move || {
             let mut app = generate_app(
                 config,
@@ -142,9 +152,9 @@ fn run(py: Python<'_>, config: MazeConfig, policy: Py<PyAny>) -> PyResult<Option
 /// happened.
 ///
 /// The clock is simulated: `max_seconds` counts simulated seconds, so a 300-second budget matches
-/// the assignment's five-minute target regardless of how long the run actually takes. Every
-/// simulated tick calls `get_action` exactly once — the sim waits for the policy rather than
-/// skipping ahead — so a run is reproducible for a given maze seed.
+/// the assignment's five-minute target regardless of how long the run actually takes. The
+/// simulation waits for each `get_action` to return rather than skipping ahead, so a run is
+/// reproducible for a given maze seed.
 #[gen_stub_pyfunction]
 #[pyfunction(name = "run_headless")]
 #[pyo3(signature = (config, policy, max_seconds = 300.0, mapping_accuracy_milestones = vec![0.2, 0.4, 0.6, 0.8], stop_on_all_flags_captured = false))]
@@ -167,6 +177,7 @@ fn run_headless(
 
     let mut config = config;
     config.headless = true;
+    config.validate().map_err(PyValueError::new_err)?;
 
     let (tx_result, rx_result) = crossbeam_channel::bounded::<GameResult>(1);
     let metrics_config = MetricsConfig {
