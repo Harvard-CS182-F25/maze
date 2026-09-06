@@ -76,10 +76,8 @@ pub fn handle_flag_pickups(
     agents: Query<(Entity, &Transform, Option<&Children>), With<Agent>>,
     mut flags: Query<(Entity, &mut Flag, &mut Transform, &InteractionRadius), Without<Agent>>,
 ) {
-    for FlagPickupMessage { agent_id } in reader.read() {
-        let agent = agents.iter().find(|(e, _, _)| e.index() == *agent_id);
-        let Some((agent_entity, agent_transform, agent_children)) = agent else {
-            warn!("No agent with id {agent_id} exists");
+    for _ in reader.read() {
+        let Ok((agent_entity, agent_transform, agent_children)) = agents.single() else {
             continue;
         };
 
@@ -87,7 +85,7 @@ pub fn handle_flag_pickups(
         let carrying_flag = agent_children
             .is_some_and(|children| children.iter().any(|child| flags.get(child).is_ok()));
         if carrying_flag {
-            warn!("Agent {agent_id} is already carrying a flag and cannot pick up another");
+            warn!("The agent is already carrying a flag and cannot pick up another");
             continue;
         }
 
@@ -125,12 +123,12 @@ pub fn handle_flag_pickups(
             *announced_out_of_range = true;
             match nearest {
                 Some((distance, radius)) => warn!(
-                    "Agent {agent_id} tried to pick up a flag, but the nearest dropped one is \
+                    "The agent tried to pick up a flag, but the nearest dropped one is \
                      {distance:.1} units away and must be within {radius:.1}. Not reporting this again."
                 ),
                 None => warn!(
-                    "Agent {agent_id} tried to pick up a flag, but none are on the ground to pick \
-                     up. Not reporting this again."
+                    "The agent tried to pick up a flag, but none are on the ground to pick up. \
+                     Not reporting this again."
                 ),
             }
         }
@@ -143,10 +141,8 @@ pub fn handle_flag_drop(
     agents: Query<(Entity, &Transform, Option<&Children>), With<Agent>>,
     mut flags: Query<(Entity, &mut Flag, &mut Transform), Without<Agent>>,
 ) {
-    for FlagDropMessage { agent_id } in reader.read() {
-        let agent = agents.iter().find(|(e, _, _)| e.index() == *agent_id);
-        let Some((agent_entity, agent_transform, agent_children)) = agent else {
-            warn!("No agent with id {agent_id} exists");
+    for _ in reader.read() {
+        let Ok((agent_entity, agent_transform, agent_children)) = agents.single() else {
             continue;
         };
 
@@ -160,7 +156,7 @@ pub fn handle_flag_drop(
             })
         });
         let Some(flag_entity) = flag_entity else {
-            warn!("Agent {agent_id} is not carrying a flag and cannot drop one");
+            warn!("The agent is not carrying a flag and cannot drop one");
             continue;
         };
 

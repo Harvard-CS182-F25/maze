@@ -42,10 +42,6 @@ pub struct GameState {
 #[pyclass(name = "AgentState", frozen)]
 /// Represents the state of the agent, including its observed information.
 pub struct AgentState {
-    /// Returns the entity ID of the agent.
-    #[pyo3(get)]
-    pub id: u32,
-
     /// Returns the observed position, including position noise.
     #[pyo3(get)]
     pub position: (f32, f32),
@@ -58,9 +54,9 @@ pub struct AgentState {
     #[pyo3(get)]
     pub raycasts: Vec<HitInfo>,
 
-    /// Returns the ID of the flag carried, if any.
+    /// Returns whether the agent is currently carrying a flag.
     #[pyo3(get)]
-    pub flag_id: Option<u32>,
+    pub carrying_flag: bool,
 
     /// Returns the maximum linear speed of the agent.
     #[pyo3(get)]
@@ -245,19 +241,10 @@ pub fn collect_agent_state(
     config: &MazeConfig,
     sensor_rng: &mut SensorRng,
     spatial_query: &SpatialQuery,
-    agent: Query<
-        (
-            Entity,
-            &MaxLinearSpeed,
-            &Transform,
-            &RayCasters,
-            Option<&Children>,
-        ),
-        With<Agent>,
-    >,
+    agent: Query<(&MaxLinearSpeed, &Transform, &RayCasters, Option<&Children>), With<Agent>>,
     kinds: &Query<(Option<&Wall>, Option<&Flag>, Option<&CapturePoint>)>,
 ) -> (AgentState, AgentState) {
-    let (entity, max_speed, agent_transform, raycasters, children) =
+    let (max_speed, agent_transform, raycasters, children) =
         agent.single().expect("There should be exactly one agent");
 
     let flag = children.and_then(|kids| {
@@ -309,11 +296,10 @@ pub fn collect_agent_state(
         Normal::new(0.0, config.agent.range_stddev).expect("Normal distribution should be valid");
 
     let true_agent_state = AgentState {
-        id: entity.index(),
         position: agent_transform.translation.xz().into(),
         position_stddev: config.agent.position_stddev,
         raycasts,
-        flag_id: flag.map(|f| f.index()),
+        carrying_flag: flag.is_some(),
         max_speed: max_speed.0,
     };
 

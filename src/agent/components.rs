@@ -52,15 +52,26 @@ impl RayCasters {
 #[pyclass(name = "Action", eq)]
 /// An action returned by an agent policy.
 pub enum Action {
-    /// Moves agent `agent_id` at `velocity`, capped to agent's max speed.
-    /// Example: `Action.Move(agent_id, velocity)`.
-    Move { agent_id: u32, velocity: (f32, f32) },
-    /// Makes agent `agent_id` attempt to pick up a nearby flag.
-    /// Example: `Action.PickupFlag(agent_id)`.
-    PickupFlag { agent_id: u32 },
-    /// Makes agent `agent_id` attempt to drop its flag at a capture point.
-    /// Example: `Action.DropFlag(agent_id)`.
-    DropFlag { agent_id: u32 },
+    /// Moves the agent at `velocity`, capped to its `max_speed`.
+    /// Example: `Action.Move(velocity=(1.0, 0.0))`.
+    Move { velocity: (f32, f32) },
+    /// Picks up a flag, if one is on the ground within reach.
+    /// Example: `Action.PickupFlag()`.
+    PickupFlag(),
+    /// Drops the flag the agent is carrying, capturing it if a capture point is within reach.
+    /// Example: `Action.DropFlag()`.
+    DropFlag(),
+}
+
+#[pymethods]
+impl Action {
+    fn __repr__(&self) -> String {
+        match self {
+            Action::Move { velocity } => format!("Action.Move(velocity={velocity:?})"),
+            Action::PickupFlag() => "Action.PickupFlag()".to_string(),
+            Action::DropFlag() => "Action.DropFlag()".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Bundle)]

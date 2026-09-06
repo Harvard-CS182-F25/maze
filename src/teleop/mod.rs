@@ -31,16 +31,15 @@ impl Plugin for TeleopPlugin {
 
 fn teleop_input(
     keys: Res<ButtonInput<KeyCode>>,
-    agents: Query<(Entity, &MaxLinearSpeed, Option<&Children>), With<Agent>>,
+    agents: Query<(&MaxLinearSpeed, Option<&Children>), With<Agent>>,
     flags: Query<&Flag>,
     mut movement: MessageWriter<MovementMessage>,
     mut pickup: MessageWriter<FlagPickupMessage>,
     mut drop: MessageWriter<FlagDropMessage>,
 ) {
-    let Ok((entity, max_speed, children)) = agents.single() else {
+    let Ok((max_speed, children)) = agents.single() else {
         return;
     };
-    let id = entity.index();
 
     // Camera panning uses Shift+drag, so both conventional movement key sets are available.
     let right = keys.pressed(KeyCode::KeyD) || keys.pressed(KeyCode::ArrowRight);
@@ -57,16 +56,16 @@ fn teleop_input(
     // Unlike a turn-based game, "no key held" has to mean a concrete zero velocity — otherwise the
     // agent coasts on whatever it was last given.
     let velocity = direction.normalize_or_zero() * max_speed.0;
-    movement.write(MovementMessage::TranslateById(id, velocity));
+    movement.write(MovementMessage(velocity));
 
     if keys.just_pressed(KeyCode::Space) {
         let carrying_flag =
             children.is_some_and(|children| children.iter().any(|child| flags.get(child).is_ok()));
 
         if carrying_flag {
-            drop.write(FlagDropMessage { agent_id: id });
+            drop.write(FlagDropMessage);
         } else {
-            pickup.write(FlagPickupMessage { agent_id: id });
+            pickup.write(FlagPickupMessage);
         }
     }
 }

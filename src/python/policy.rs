@@ -256,16 +256,7 @@ fn send_game_states(
     true_grid: Res<TrueGrid>,
     bridge: Option<Res<Bridge>>,
     spatial_query: SpatialQuery,
-    agent: Query<
-        (
-            Entity,
-            &MaxLinearSpeed,
-            &Transform,
-            &RayCasters,
-            Option<&Children>,
-        ),
-        With<Agent>,
-    >,
+    agent: Query<(&MaxLinearSpeed, &Transform, &RayCasters, Option<&Children>), With<Agent>>,
     kinds: Query<(Option<&Wall>, Option<&Flag>, Option<&CapturePoint>)>,
     flags: Query<&Flag>,
 ) {
@@ -331,7 +322,6 @@ fn apply_actions(
     config: Res<MazeConfig>,
     mut schedule: ResMut<PolicySchedule>,
     mut policy_cost: ResMut<PolicyCost>,
-    agents: Query<(Entity, &Agent)>,
     mut movement_event_writer: MessageWriter<MovementMessage>,
     mut pickup_event_writer: MessageWriter<FlagPickupMessage>,
     mut drop_event_writer: MessageWriter<FlagDropMessage>,
@@ -382,23 +372,14 @@ fn apply_actions(
     }
 
     match action {
-        Action::Move { agent_id, velocity } => {
-            if !check_agent_exists(agent_id, agents) {
-                return;
-            }
-            movement_event_writer.write(MovementMessage::TranslateById(agent_id, velocity.into()));
+        Action::Move { velocity } => {
+            movement_event_writer.write(MovementMessage(velocity.into()));
         }
-        Action::PickupFlag { agent_id } => {
-            if !check_agent_exists(agent_id, agents) {
-                return;
-            }
-            pickup_event_writer.write(FlagPickupMessage { agent_id });
+        Action::PickupFlag() => {
+            pickup_event_writer.write(FlagPickupMessage);
         }
-        Action::DropFlag { agent_id } => {
-            if !check_agent_exists(agent_id, agents) {
-                return;
-            }
-            drop_event_writer.write(FlagDropMessage { agent_id });
+        Action::DropFlag() => {
+            drop_event_writer.write(FlagDropMessage);
         }
     }
 }
@@ -455,8 +436,4 @@ fn shutdown_workers_on_exit(
     }
 
     bridge.take();
-}
-
-fn check_agent_exists(agent_id: u32, agents: Query<(Entity, &Agent)>) -> bool {
-    agents.iter().any(|(e, _a)| e.index() == agent_id)
 }

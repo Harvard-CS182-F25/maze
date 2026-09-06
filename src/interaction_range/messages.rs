@@ -1,11 +1,7 @@
 use bevy::prelude::*;
 
 #[derive(Message, Clone, Copy)]
-pub struct FlagPickupMessage {
-    pub agent_id: u32,
-}
+pub struct FlagPickupMessage;
 
 #[derive(Message, Clone, Copy)]
-pub struct FlagDropMessage {
-    pub agent_id: u32,
-}
+pub struct FlagDropMessage;

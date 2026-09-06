@@ -11,35 +11,33 @@ class Action:
     """
     class Move(Action):
         r"""
-        Moves agent `agent_id` at `velocity`, capped to agent's max speed.
-        Example: `Action.Move(agent_id, velocity)`.
+        Moves the agent at `velocity`, capped to its `max_speed`.
+        Example: `Action.Move(velocity=(1.0, 0.0))`.
         """
-        __match_args__ = ("agent_id", "velocity",)
-        @property
-        def agent_id(self) -> builtins.int: ...
+        __match_args__ = ("velocity",)
         @property
         def velocity(self) -> tuple[builtins.float, builtins.float]: ...
-        def __new__(cls, agent_id:builtins.int, velocity:tuple[builtins.float, builtins.float]) -> Action.Move: ...
+        def __new__(cls, velocity:tuple[builtins.float, builtins.float]) -> Action.Move: ...
     
     class PickupFlag(Action):
         r"""
-        Makes agent `agent_id` attempt to pick up a nearby flag.
-        Example: `Action.PickupFlag(agent_id)`.
+        Picks up a flag, if one is on the ground within reach.
+        Example: `Action.PickupFlag()`.
         """
-        __match_args__ = ("agent_id",)
-        @property
-        def agent_id(self) -> builtins.int: ...
-        def __new__(cls, agent_id:builtins.int) -> Action.PickupFlag: ...
+        __match_args__ = ()
+        def __new__(cls) -> Action.PickupFlag: ...
+        def __len__(self) -> builtins.int: ...
+        def __getitem__(self, key:builtins.int) -> typing.Any: ...
     
     class DropFlag(Action):
         r"""
-        Makes agent `agent_id` attempt to drop its flag at a capture point.
-        Example: `Action.DropFlag(agent_id)`.
+        Drops the flag the agent is carrying, capturing it if a capture point is within reach.
+        Example: `Action.DropFlag()`.
         """
-        __match_args__ = ("agent_id",)
-        @property
-        def agent_id(self) -> builtins.int: ...
-        def __new__(cls, agent_id:builtins.int) -> Action.DropFlag: ...
+        __match_args__ = ()
+        def __new__(cls) -> Action.DropFlag: ...
+        def __len__(self) -> builtins.int: ...
+        def __getitem__(self, key:builtins.int) -> typing.Any: ...
     
     ...
 
@@ -94,11 +92,6 @@ class AgentState:
     Represents the state of the agent, including its observed information.
     """
     @property
-    def id(self) -> builtins.int:
-        r"""
-        Returns the entity ID of the agent.
-        """
-    @property
     def position(self) -> tuple[builtins.float, builtins.float]:
         r"""
         Returns the observed position, including position noise.
@@ -114,9 +107,9 @@ class AgentState:
         Returns a list of range-sensor readings.
         """
     @property
-    def flag_id(self) -> typing.Optional[builtins.int]:
+    def carrying_flag(self) -> builtins.bool:
         r"""
-        Returns the ID of the flag carried, if any.
+        Returns whether the agent is currently carrying a flag.
         """
     @property
     def max_speed(self) -> builtins.float:

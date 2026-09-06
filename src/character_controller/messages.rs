@@ -1,9 +1,5 @@
-use avian3d::math::*;
+use avian3d::math::Vector2;
 use bevy::prelude::*;
 
 #[derive(Message)]
-#[allow(dead_code)]
-pub enum MovementMessage {
-    TranslateById(u32, Vector2),
-    RotateById(u32, Scalar),
-}
+pub struct MovementMessage(pub Vector2);
