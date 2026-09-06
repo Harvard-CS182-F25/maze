@@ -76,6 +76,18 @@ class AgentConfig:
     def occupancy_grid_cell_size(self) -> builtins.float: ...
     @occupancy_grid_cell_size.setter
     def occupancy_grid_cell_size(self, value: builtins.float) -> None: ...
+    @property
+    def policy_timeout_seconds(self) -> builtins.float:
+        r"""
+        How long the simulation waits for one `get_action` call before giving up on the policy, in
+        seconds. Zero waits forever, which is what a debugger session needs.
+        """
+    @policy_timeout_seconds.setter
+    def policy_timeout_seconds(self, value: builtins.float) -> None:
+        r"""
+        How long the simulation waits for one `get_action` call before giving up on the policy, in
+        seconds. Zero waits forever, which is what a debugger session needs.
+        """
 
 class AgentState:
     r"""
@@ -181,6 +193,12 @@ class GameResult:
     def flags_captured(self) -> builtins.int: ...
     @property
     def total_flags(self) -> builtins.int: ...
+    @property
+    def capturable_flags(self) -> builtins.int:
+        r"""
+        The most flags this configuration can ever have captured. A capture point holds a single
+        flag, so a run with more flags than capture points cannot reach `total_flags`.
+        """
     @property
     def maze_seed(self) -> builtins.int:
         r"""

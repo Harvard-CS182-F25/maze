@@ -191,6 +191,10 @@ pub fn handle_flag_capture(
                 capture_counts.0 += 1;
                 flag.status = FlagStatus::Captured;
                 flag_transform.translation = Vec3::ZERO;
+                // A capture point holds one flag. `has_flag` cannot see the child added just above
+                // because commands are deferred, so without this a second flag in range on the
+                // same tick would be captured too.
+                break;
             }
         }
     }

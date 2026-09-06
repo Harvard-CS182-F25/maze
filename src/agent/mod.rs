@@ -46,6 +46,12 @@ pub struct AgentConfig {
     #[pyo3(get, set)]
     #[derivative(Default(value = "1.0"))]
     pub occupancy_grid_cell_size: f32,
+
+    /// How long the simulation waits for one `get_action` call before giving up on the policy, in
+    /// seconds. Zero waits forever, which is what a debugger session needs.
+    #[pyo3(get, set)]
+    #[derivative(Default(value = "60.0"))]
+    pub policy_timeout_seconds: f32,
 }
 
 impl AgentConfig {
@@ -71,6 +77,34 @@ impl AgentConfig {
                 self.policy_hz
             ));
         }
+
+        // A negated comparison so NaN, which fails every comparison, is rejected too. Zero is
+        // allowed where it is merely degenerate: a motionless agent and a noiseless sensor both
+        // describe a real setup.
+        for (name, value) in [
+            ("agent.max_speed", self.max_speed),
+            ("agent.position_stddev", self.position_stddev),
+            ("agent.range_stddev", self.range_stddev),
+        ] {
+            if !(value >= 0.0) || !value.is_finite() {
+                return Err(format!("{name} must be zero or positive; got {value}"));
+            }
+        }
+
+        if !(self.occupancy_grid_cell_size > 0.0) || !self.occupancy_grid_cell_size.is_finite() {
+            return Err(format!(
+                "agent.occupancy_grid_cell_size must be positive; got {}",
+                self.occupancy_grid_cell_size
+            ));
+        }
+
+        if !(self.policy_timeout_seconds >= 0.0) || !self.policy_timeout_seconds.is_finite() {
+            return Err(format!(
+                "agent.policy_timeout_seconds must be zero, which waits forever, or positive; got {}",
+                self.policy_timeout_seconds
+            ));
+        }
+
         Ok(())
     }
 }

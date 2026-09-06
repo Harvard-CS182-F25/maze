@@ -16,12 +16,8 @@ pub struct OccupancyGridPlugin {
 
 impl Plugin for OccupancyGridPlugin {
     fn build(&self, app: &mut App) {
-        let columns = (self.config.maze_generation.world_width
-            / self.config.agent.occupancy_grid_cell_size)
-            .round() as usize;
-        let rows = (self.config.maze_generation.world_height
-            / self.config.agent.occupancy_grid_cell_size)
-            .round() as usize;
+        let (columns, rows) = self.config.occupancy_grid_dimensions();
+        let (columns, rows) = (columns as usize, rows as usize);
 
         let true_arc = {
             let true_grid = Python::attach(|py| {

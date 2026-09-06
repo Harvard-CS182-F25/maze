@@ -38,6 +38,38 @@ pub struct MazeGenerationConfig {
     pub cell_size: f32,
 }
 
+impl MazeGenerationConfig {
+    pub(crate) fn validate(&self) -> Result<(), String> {
+        for (name, value) in [
+            ("maze_generation.world_width", self.world_width),
+            ("maze_generation.world_height", self.world_height),
+            ("maze_generation.cell_size", self.cell_size),
+        ] {
+            if !(value > 0.0) || !value.is_finite() {
+                return Err(format!("{name} must be positive; got {value}"));
+            }
+        }
+
+        // The maze generator panics rather than erroring on a zero-sized maze.
+        let (columns, rows) = self.maze_dimensions();
+        if columns < 1 || rows < 1 {
+            return Err(format!(
+                "maze_generation.cell_size {} is too large for a {}x{} world: it leaves a {}x{} maze",
+                self.cell_size, self.world_width, self.world_height, columns, rows
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn maze_dimensions(&self) -> (i32, i32) {
+        (
+            (self.world_width / self.cell_size).round() as i32,
+            (self.world_height / self.cell_size).round() as i32,
+        )
+    }
+}
+
 pub struct ScenePlugin;
 impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {

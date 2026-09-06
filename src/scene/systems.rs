@@ -489,11 +489,9 @@ pub fn spawn_walls(
         Some(arr)
     });
 
+    let (maze_columns, maze_rows) = config.maze_generation.maze_dimensions();
     let maze = generator
-        .generate(
-            (config.maze_generation.world_width / config.maze_generation.cell_size).round() as i32,
-            (config.maze_generation.world_height / config.maze_generation.cell_size).round() as i32,
-        )
+        .generate(maze_columns, maze_rows)
         .expect("Maze generation failed");
 
     let segments = segments_from_maze(&maze, &config, WALL_THICKNESS * 0.5);

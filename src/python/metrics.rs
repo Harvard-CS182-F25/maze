@@ -11,7 +11,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::core::{MazeConfig, SimulationSets};
-use crate::flag::{Flag, FlagCaptureCounts};
+use crate::flag::{CapturePoint, Flag, FlagCaptureCounts};
 use crate::occupancy_grid::{PlayerGrid, TrueGrid};
 use crate::python::policy::PolicyErrorSlot;
 use crate::scene::mapping_metrics;
@@ -67,6 +67,11 @@ pub struct GameResult {
 
     #[pyo3(get)]
     pub total_flags: u32,
+
+    /// The most flags this configuration can ever have captured. A capture point holds a single
+    /// flag, so a run with more flags than capture points cannot reach `total_flags`.
+    #[pyo3(get)]
+    pub capturable_flags: u32,
 
     /// The maze seed actually used. Worth recording when the config left `seed` unset, since it is
     /// what makes a run reproducible.
@@ -147,6 +152,13 @@ impl std::fmt::Display for GameResult {
             "  flags captured     {}/{}",
             self.flags_captured, self.total_flags
         )?;
+        if self.capturable_flags < self.total_flags {
+            writeln!(
+                f,
+                "    only {} reachable (a capture point holds one flag)",
+                self.capturable_flags
+            )?;
+        }
         if !self.flag_capture_times.is_empty() {
             let times = self
                 .flag_capture_times
@@ -183,6 +195,7 @@ pub struct MetricsState {
     mapping_accuracy_milestone_times: Vec<Option<f32>>,
     flag_capture_times: Vec<f32>,
     last_capture_count: u32,
+    capturable_flags: u32,
     mapping_accuracy_cells: (u32, u32),
     final_mapping_accuracy: f32,
     free_recall_cells: (u32, u32),
@@ -233,11 +246,13 @@ fn record_metrics(
     true_grid: Res<TrueGrid>,
     captures: Res<FlagCaptureCounts>,
     flags: Query<&Flag>,
+    capture_points: Query<&CapturePoint>,
 ) {
     let now = time.elapsed_secs();
     state.elapsed_seconds = now;
     // Counted here rather than at startup so the flag entities are guaranteed to exist.
     state.total_flags = flags.iter().count() as u32;
+    state.capturable_flags = state.total_flags.min(capture_points.iter().count() as u32);
 
     let metrics = mapping_metrics(&player_grid, &true_grid);
     let accuracy = metrics.accuracy();
@@ -277,8 +292,8 @@ fn check_stop_conditions(
     }
 
     if metrics_config.stop_on_all_flags_captured
-        && state.total_flags > 0
-        && state.last_capture_count >= state.total_flags
+        && state.capturable_flags > 0
+        && state.last_capture_count >= state.capturable_flags
     {
         exit.write(AppExit::Success);
     }
@@ -313,6 +328,7 @@ fn report_result(
         flag_capture_times: state.flag_capture_times.clone(),
         flags_captured: state.last_capture_count,
         total_flags: state.total_flags,
+        capturable_flags: state.capturable_flags,
         maze_seed: state.maze_seed,
         policy_error: policy_error.and_then(|slot| slot.get()),
     };

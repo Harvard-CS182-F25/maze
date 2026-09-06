@@ -60,10 +60,38 @@ pub enum SimulationSets {
 }
 
 impl MazeConfig {
-    /// Checks the rules that span fields, which only a run can settle. Parsing checks the
-    /// sub-configs on their own, since a caller may still set `teleop` before running.
-    pub(crate) fn validate(&self) -> Result<(), String> {
+    /// Checks every setting that does not depend on how the config will be run, so that parsing a
+    /// config rejects the values that would otherwise panic deep inside the engine.
+    pub(crate) fn validate_settings(&self) -> Result<(), String> {
         self.agent.validate()?;
+        self.maze_generation.validate()?;
+
+        let (columns, rows) = self.occupancy_grid_dimensions();
+        if columns < 1 || rows < 1 {
+            return Err(format!(
+                "agent.occupancy_grid_cell_size {} is too large for a {}x{} world: it leaves a {}x{} occupancy grid",
+                self.agent.occupancy_grid_cell_size,
+                self.maze_generation.world_width,
+                self.maze_generation.world_height,
+                columns,
+                rows
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn occupancy_grid_dimensions(&self) -> (i32, i32) {
+        (
+            (self.maze_generation.world_width / self.agent.occupancy_grid_cell_size).round() as i32,
+            (self.maze_generation.world_height / self.agent.occupancy_grid_cell_size).round() as i32,
+        )
+    }
+
+    /// Everything, including the rules that only a run can settle. Parsing checks
+    /// [`Self::validate_settings`] alone, since a caller may still set `teleop` before running.
+    pub(crate) fn validate(&self) -> Result<(), String> {
+        self.validate_settings()?;
         if self.agent.active_policy_hz().is_none() && (self.headless || !self.teleop) {
             return Err(
                 "agent.policy_hz = 0 disables the policy, which only works with windowed teleop"
@@ -176,6 +204,36 @@ mod tests {
         assert!(serde_yaml::from_str::<MazeConfig>("camera:\n  scale: -0.15\n").is_err());
         assert!(serde_yaml::from_str::<MazeConfig>("capture_points:\n  number: 1\n").is_err());
         assert!(serde_yaml::from_str::<MazeConfig>("maze_generation:\n  width: 100\n").is_err());
+    }
+
+    #[test]
+    fn settings_that_would_panic_the_engine_are_rejected() {
+        let ok = MazeConfig::default();
+        assert!(ok.validate_settings().is_ok());
+
+        // A motionless agent and a noiseless sensor are degenerate, not invalid.
+        let mut degenerate = MazeConfig::default();
+        degenerate.agent.max_speed = 0.0;
+        degenerate.agent.position_stddev = 0.0;
+        assert!(degenerate.validate_settings().is_ok());
+
+        let cases: [(&str, fn(&mut MazeConfig)); 7] = [
+            ("negative max_speed", |c| c.agent.max_speed = -1.0),
+            ("negative stddev", |c| c.agent.position_stddev = -1.0),
+            ("zero grid cell", |c| c.agent.occupancy_grid_cell_size = 0.0),
+            ("negative grid cell", |c| c.agent.occupancy_grid_cell_size = -1.0),
+            ("zero world", |c| c.maze_generation.world_width = 0.0),
+            ("zero maze cell", |c| c.maze_generation.cell_size = 0.0),
+            ("maze cell larger than the world", |c| {
+                c.maze_generation.cell_size = 1000.0
+            }),
+        ];
+
+        for (name, break_it) in cases {
+            let mut config = MazeConfig::default();
+            break_it(&mut config);
+            assert!(config.validate_settings().is_err(), "{name} was accepted");
+        }
     }
 
     #[test]

@@ -42,9 +42,9 @@ fn parse_config(config_path: &str) -> PyResult<MazeConfig> {
     let config: MazeConfig = serde_yaml::from_str(&config_str)
         .map_err(|e| PyRuntimeError::new_err(format!("Failed to parse config file: {}", e)))?;
 
-    // Only the per-field rules: a config that parses may still be finished off in Python, so
+    // Only the settings themselves: a config that parses may still be finished off in Python, so
     // whether `teleop` and `headless` agree with `policy_hz` is left for `run`/`run_headless`.
-    config.agent.validate().map_err(PyValueError::new_err)?;
+    config.validate_settings().map_err(PyValueError::new_err)?;
 
     Ok(config)
 }
