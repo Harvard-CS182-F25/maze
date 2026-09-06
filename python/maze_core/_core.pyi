@@ -347,26 +347,13 @@ class OccupancyGrid:
     Represents a mutable occupancy grid, indexed by `grid[column, row]`.
     """
     @property
-    def cell_size(self) -> builtins.float:
-        r"""
-        Returns the edge length of each cell.
-        """
+    def cell_size(self) -> builtins.float: ...
     @property
-    def columns(self) -> builtins.int:
-        r"""
-        Returns the number of columns.
-        """
+    def columns(self) -> builtins.int: ...
     @property
-    def rows(self) -> builtins.int:
-        r"""
-        Returns the number of rows.
-        """
+    def rows(self) -> builtins.int: ...
     @property
-    def shape(self) -> tuple[builtins.int, builtins.int]:
-        r"""
-        Returns `(columns, rows)`.
-        """
-    def __new__(cls, columns:builtins.int, rows:builtins.int, cell_size:builtins.float) -> OccupancyGrid: ...
+    def shape(self) -> tuple[builtins.int, builtins.int]: ...
     def __getitem__(self, key:typing.Any) -> OccupancyGridEntry: ...
     def cell_at(self, x:builtins.float, y:builtins.float) -> typing.Optional[tuple[builtins.int, builtins.int]]:
         r"""
@@ -422,25 +409,6 @@ class OccupancyGridEntry:
         Returns softmax probabilities `(free, wall, flag, capture_point)`.
         """
 
-class OccupancyGridView:
-    @property
-    def cell_size(self) -> builtins.float: ...
-    @property
-    def columns(self) -> builtins.int: ...
-    @property
-    def rows(self) -> builtins.int: ...
-    @property
-    def shape(self) -> tuple[builtins.int, builtins.int]: ...
-    def __getitem__(self, key:typing.Any) -> OccupancyGridEntry: ...
-    def cell_at(self, x:builtins.float, y:builtins.float) -> typing.Optional[tuple[builtins.int, builtins.int]]:
-        r"""
-        Returns the `(column, row)` containing `(x, y)`, or `None` if outside grid.
-        """
-    def world_center(self, column:builtins.int, row:builtins.int) -> typing.Optional[tuple[builtins.float, builtins.float]]:
-        r"""
-        Returns the center of cell `(column, row)`, or `None` if outside grid.
-        """
-
 class SensorConfidence:
     r"""
     Represents per-class sensor confidence used to update an occupancy grid.
@@ -475,7 +443,7 @@ class SensorConfidence:
 class StateQueue:
     @property
     def rate_hz(self) -> builtins.float: ...
-    def get(self, timeout_ms:typing.Optional[builtins.int]) -> typing.Optional[tuple[GameState, OccupancyGridView, OccupancyGridView]]:
+    def get(self, timeout_ms:typing.Optional[builtins.int]) -> typing.Optional[tuple[GameState, OccupancyGrid, OccupancyGrid]]:
         r"""
         Wait for next GameState (timeout ms optional). Returns None on timeout.
         """

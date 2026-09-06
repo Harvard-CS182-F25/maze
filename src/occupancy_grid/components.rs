@@ -192,10 +192,11 @@ impl std::fmt::Display for OccupancyCellView {
     }
 }
 
-#[gen_stub_pyclass]
-#[pyclass(name = "OccupancyGrid")]
+/// The grid itself. Never handed to Python directly: policies receive an [`OccupancyGridView`],
+/// which is what carries the `OccupancyGrid` name on that side. It stays a `#[pyclass]` only so
+/// the view can hold it as a `Py<OccupancyGrid>` and hand out cells that borrow from it.
+#[pyclass(name = "OccupancyGridStorage")]
 #[derive(Debug, Clone, Default, Reflect)]
-/// Represents a mutable occupancy grid, indexed by `grid[column, row]`.
 pub struct OccupancyGrid {
     pub grid: Vec<OccupancyGridEntry>,
     /// Returns the edge length of each cell.
@@ -211,7 +212,6 @@ pub struct OccupancyGrid {
     pub rows: usize,
 }
 
-#[gen_stub_pymethods]
 #[pymethods]
 impl OccupancyGrid {
     #[new]
@@ -315,7 +315,8 @@ impl OccupancyGrid {
 }
 
 #[gen_stub_pyclass]
-#[pyclass]
+#[pyclass(name = "OccupancyGrid")]
+/// Represents a mutable occupancy grid, indexed by `grid[column, row]`.
 pub struct OccupancyGridView {
     pub inner: Arc<RwLock<Py<OccupancyGrid>>>,
 }
