@@ -55,7 +55,7 @@ fn push_horizontal(
     let z = z0 + (row as f32) * cell;
     let mut ax = x0 + (col as f32) * cell - pad;
     let mut bx = x0 + ((col + 1) as f32) * cell + pad;
-    // keep within outer bounds
+    // Padding may extend an interior segment, but never beyond the maze border.
     ax = ax.max(xmin);
     bx = bx.min(xmax);
     segs.push((Vec2::new(ax, z), Vec2::new(bx, z)));
@@ -87,7 +87,7 @@ pub fn segments_from_maze(maze: &Maze, config: &MazeConfig, pad: f32) -> Vec<(Ve
     let x0 = -(w as f32) * cell * 0.5;
     let z0 = -(h as f32) * cell * 0.5;
 
-    // outer bounds for clamping
+    // Maze bounds cap the padded wall segments.
     let xmin = x0;
     let xmax = x0 + (w as f32) * cell;
     let zmin = z0;
@@ -95,7 +95,7 @@ pub fn segments_from_maze(maze: &Maze, config: &MazeConfig, pad: f32) -> Vec<(Ve
 
     let mut segments = Vec::new();
 
-    // top (north) border and left (west) border
+    // Add each outer border once; East and South borders come from the final row and column.
     for c in 0..w {
         push_horizontal(&mut segments, x0, z0, cell, 0, c, pad, xmin, xmax);
     }
@@ -103,7 +103,7 @@ pub fn segments_from_maze(maze: &Maze, config: &MazeConfig, pad: f32) -> Vec<(Ve
         push_vertical(&mut segments, x0, z0, cell, 0, r, pad, zmin, zmax);
     }
 
-    // interior: add East/South walls where there is NO passage
+    // Emit East and South walls only, so shared walls are not duplicated.
     for y in 0..h {
         for x in 0..w {
             let field = maze.get_field(&Coordinates::new(x, y)).expect("in-bounds");
@@ -119,12 +119,13 @@ pub fn segments_from_maze(maze: &Maze, config: &MazeConfig, pad: f32) -> Vec<(Ve
     segments
 }
 
+// Returns cells overlapped by a world-space XZ AABB.
 fn overlapping_indexes(
-    aabb_min: Vec2,    // bottom-left  (x,y)
-    aabb_max: Vec2,    // top-right    (x,y)
-    cell_size: f32,    // occupancy grid cell size (world units)
-    world_width: f32,  // world extent in X
-    world_height: f32, // world extent in Y (your Z)
+    aabb_min: Vec2,
+    aabb_max: Vec2,
+    cell_size: f32,
+    world_width: f32,
+    world_height: f32,
 ) -> Vec<(u32, u32)> {
     let grid_w = (world_width / cell_size).round() as i32;
     let grid_h = (world_height / cell_size).round() as i32;
@@ -151,7 +152,6 @@ fn overlapping_indexes(
     out
 }
 
-/// Seeds sensor noise from the maze seed so a run is reproducible end to end.
 pub fn initialize_sensor_rng(mut commands: Commands, mut config: ResMut<MazeConfig>) {
     let seed = if let Some(seed) = config.maze_generation.seed {
         seed
@@ -166,8 +166,6 @@ pub fn initialize_sensor_rng(mut commands: Commands, mut config: ResMut<MazeConf
     commands.insert_resource(SensorRng::from_seed(seed));
 }
 
-/// Spawns Maze's single in-game HUD panel, keeping status and controls together
-/// in one predictable place.
 pub fn setup_hud(mut commands: Commands, config: Res<MazeConfig>, time: Res<Time>) {
     if config.headless {
         return;
@@ -309,7 +307,6 @@ pub fn update_time(mut query: Query<&mut Text, With<TimeText>>, time: Res<Time>)
     }
 }
 
-/// Shows live objective progress without making the open-ended simulation terminate or reset.
 pub fn update_flag_progress(
     mut query: Query<&mut Text, With<FlagProgressText>>,
     captures: Res<FlagCaptureCounts>,
@@ -321,7 +318,6 @@ pub fn update_flag_progress(
     }
 }
 
-/// Counts mapping predictions against the ground truth.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct MappingMetrics {
     pub correct_cells: u32,

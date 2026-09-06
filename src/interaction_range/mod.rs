@@ -39,6 +39,7 @@ impl Plugin for InteractionRangePlugin {
         );
         app.add_systems(
             FixedPostUpdate,
+            // Capture checks use the position physics wrote back this tick.
             systems::handle_flag_capture
                 .after(PhysicsSystems::Writeback)
                 .in_set(SimulationSets::Capture),

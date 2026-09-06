@@ -90,6 +90,7 @@ impl Plugin for PythonPolicyBridgePlugin {
             test_bridge: self.test_harness.clone(),
         });
 
+        // Each fixed tick observes the world, then applies that tick's policy action.
         app.add_systems(
             FixedUpdate,
             (send_game_states, apply_actions)

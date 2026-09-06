@@ -176,22 +176,15 @@ fn encode_grid_to_rgba(grid: &OccupancyGrid) -> Vec<u8> {
 }
 
 pub fn cursor_to_grid_cell<T: PyGridProvider>(
-    // cursor
     windows: Query<&Window, With<PrimaryWindow>>,
-    // camera doing the looking
     cams: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
-    // your grid plane transform
     plane_q: Query<&GlobalTransform, With<GridPlane<T>>>,
-    // your sizes
     config: Res<MazeConfig>,
     mut hover: ResMut<HoverCell>,
 ) {
-    // let window = if let Ok(w) = windows.single() {
-    //     w
-    // } else {
-    //     return;
-    // };
-    let Ok(window) = windows.single() else { return };
+    let Ok(window) = windows.single() else {
+        return;
+    };
     let Ok((camera, cam_transform)) = cams.single() else {
         return;
     };
@@ -204,7 +197,7 @@ pub fn cursor_to_grid_cell<T: PyGridProvider>(
         return;
     };
 
-    // Build a world-space ray from the cursor
+    // Cast the cursor through the camera onto the grid plane.
     let Ok(ray) = camera.viewport_to_world(cam_transform, cursor) else {
         return;
     };
@@ -212,10 +205,8 @@ pub fn cursor_to_grid_cell<T: PyGridProvider>(
     let ro = ray.origin;
     let rd = ray.direction;
 
-    // Intersect ray with the plane the grid image sits on.
-    // This assumes the plane is an XZ "floor", so its normal is +Y in local space.
     let plane_point = plane_gt.translation();
-    let plane_normal = plane_gt.up().into(); // world-space normal (+Y rotated by plane)
+    let plane_normal = plane_gt.up().into();
 
     let denom = rd.dot(plane_normal);
     if denom.abs() < 1e-6 {
@@ -229,31 +220,28 @@ pub fn cursor_to_grid_cell<T: PyGridProvider>(
     }
     let hit = ro + t * rd;
 
-    // Convert world hit → plane-local so we can use X/Z cleanly
+    // Convert to plane-local coordinates so this still works if the grid plane moves or rotates.
     let inv = plane_gt.to_matrix().inverse();
-    let local = inv.transform_point3(hit); // local.y should be ~0
+    let local = inv.transform_point3(hit);
 
-    // Map local.x/local.z to [0, columns)×[0, rows)
+    // Map plane-local XZ to a grid column and row.
     let world_w = config.maze_generation.world_width;
     let world_h = config.maze_generation.world_height;
     let cell = config.agent.occupancy_grid_cell_size;
     let grid_columns = (world_w / cell).round() as u32;
     let grid_rows = (world_h / cell).round() as u32;
 
-    // Plane is centered at (0, WALL_HEIGHT, 0) with extents ±world_w/2, ±world_h/2
-    let u = (local.x + world_w * 0.5) / cell; // column (x)
-    let v = (local.z + world_h * 0.5) / cell; // row    (z)
+    let u = (local.x + world_w * 0.5) / cell;
+    let v = (local.z + world_h * 0.5) / cell;
 
     let col = u.floor() as i32;
     let row = v.floor() as i32;
 
-    // Inside?
     if col < 0 || row < 0 || col as u32 >= grid_columns || row as u32 >= grid_rows {
         *hover = HoverCell::default();
         return;
     }
 
-    // If your image ends up vertically flipped, swap to: let row = (grid_rows as i32 - 1) - row;
     hover.cell = Some(UVec2::new(col as u32, row as u32));
     hover.world_hit = Some(hit);
 }
@@ -340,7 +328,7 @@ pub fn update_hover_box<T: PyGridProvider>(
         return;
     }
 
-    // place near cursor with a small offset; clamp to window bounds
+    // Keep the tooltip on-screen when the cursor is near an edge.
     let Some(cursor) = window.cursor_position() else {
         node.display = Display::None;
         return;
@@ -351,7 +339,7 @@ pub fn update_hover_box<T: PyGridProvider>(
         let grid_ref = py_obj.borrow(py);
         let idx = (cell.y * grid_ref.columns as u32 + cell.x) as usize;
         if idx >= grid_ref.grid.len() {
-            // return default-shaped values: logits tuple, probabilities tuple, no assignment
+            // Keep the tooltip tuple shape stable if the grid changed under the cursor.
             return ((-1.0, -1.0, -1.0, -1.0), (-1.0, -1.0, -1.0, -1.0), None);
         }
         let entry = &grid_ref.grid[idx];
@@ -367,10 +355,10 @@ pub fn update_hover_box<T: PyGridProvider>(
         (logits, probs, assign)
     });
 
-    // tweak these if you change box size
     const OFFSET: Vec2 = Vec2::new(0.0, 0.0);
-    const BOX_W: f32 = 320.0; // assumed width for clamping
-    const BOX_H: f32 = 120.0; // assumed height for clamping
+    // These estimates let the tooltip clamp before Bevy has laid it out.
+    const BOX_W: f32 = 320.0;
+    const BOX_H: f32 = 120.0;
 
     let mut x = cursor.x + OFFSET.x;
     let mut y = cursor.y + OFFSET.y;

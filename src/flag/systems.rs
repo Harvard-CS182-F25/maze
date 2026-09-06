@@ -66,28 +66,26 @@ fn grid_to_world_xy(col: u32, row: u32, cell_size: f32, world_w: f32, world_h: f
     (x, y)
 }
 
-/// Picks up to `count` indices for `place_as`, respecting 3.0-unit clearance from:
+/// Picks positions with 3.0-unit clearance from:
 /// - walls
 /// - existing flags/capture points
 /// - newly selected same-type items (to avoid clumping)
 ///
-/// Returns (index, (world_x, world_y)) for each picked cell and commits assignments.
 fn pick_positions_for(
     py_grid: &mut OccupancyGrid,
     config: &MazeConfig,
     rng: &mut ChaCha20Rng,
     count: usize,
-    place_as: EntityType, // Flag or CapturePoint
+    place_as: EntityType,
 ) -> Vec<(f32, f32)> {
     let w = py_grid.columns as i32;
     let h = py_grid.rows as i32;
     let n = (w * h) as usize;
     let cell_size = config.agent.occupancy_grid_cell_size;
 
-    // 1) Start with everything unblocked.
     let mut blocked = vec![false; n];
 
-    // 2) Block around walls and existing specials.
+    // Reserve clearance around existing obstacles and already placed objectives.
     for (i, cell) in py_grid.grid.iter().enumerate() {
         match cell.assignment {
             Some(EntityType::Wall) => {
@@ -100,7 +98,6 @@ fn pick_positions_for(
         }
     }
 
-    // 3) Collect empty + not blocked candidates.
     let mut candidates: Vec<usize> = py_grid
         .grid
         .iter()
@@ -109,8 +106,7 @@ fn pick_positions_for(
         .map(|(i, _)| i)
         .collect();
 
-    // 4) Shuffle for randomness, then greedily pick; after each pick, block a 3.0-unit radius
-    //    around the new item so the next picks stay spaced out.
+    // Shuffle candidates, then reserve clearance after each selection.
     candidates.shuffle(rng);
 
     let mut picked: Vec<usize> = Vec::with_capacity(count);
@@ -135,7 +131,6 @@ fn pick_positions_for(
         );
     }
 
-    // 5) Commit to grid and prepare world positions.
     let world_w = config.maze_generation.world_width;
     let world_h = config.maze_generation.world_height;
 
@@ -150,12 +145,13 @@ fn pick_positions_for(
     out
 }
 
+// Returns cells overlapped by a world-space XZ AABB.
 fn overlapping_indexes(
-    aabb_min: Vec2,    // bottom-left  (x,y)
-    aabb_max: Vec2,    // top-right    (x,y)
-    cell_size: f32,    // occupancy grid cell size (world units)
-    world_width: f32,  // world extent in X
-    world_height: f32, // world extent in Y (your Z)
+    aabb_min: Vec2,
+    aabb_max: Vec2,
+    cell_size: f32,
+    world_width: f32,
+    world_height: f32,
 ) -> Vec<(u32, u32)> {
     let grid_w = (world_width / cell_size).round() as i32;
     let grid_h = (world_height / cell_size).round() as i32;
@@ -181,8 +177,6 @@ fn overlapping_indexes(
     }
     out
 }
-
-// --------------------- spawners ---------------------
 
 pub fn spawn_flags(
     mut commands: Commands,

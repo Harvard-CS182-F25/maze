@@ -18,9 +18,7 @@ use crate::teleop;
 #[pyclass(name = "MazeConfig")]
 #[derive(Debug, Clone, Resource, Reflect, Serialize, Deserialize, Derivative)]
 #[derivative(Default)]
-// `default` fills in anything the file omits; `deny_unknown_fields` makes anything the file
-// invents an error instead of a silent no-op. Without the latter a stale or mistyped key just
-// disappears, and the game runs with settings the config claims it isn't using.
+// Reject unknown config fields so typos fail fast.
 #[serde(default, deny_unknown_fields)]
 #[reflect(Resource)]
 pub struct MazeConfig {
@@ -46,6 +44,7 @@ pub enum StartupSets {
     Agents,
 }
 
+/// Ordered stages of one fixed simulation tick.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SimulationSets {
     Policy,

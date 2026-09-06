@@ -10,7 +10,6 @@ pub struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
-        // Add diagnostics.
         app.add_plugins((
             PhysicsDiagnosticsPlugin,
             PhysicsDiagnosticsUiPlugin,
@@ -20,13 +19,11 @@ impl Plugin for DebugPlugin {
             FrameTimeDiagnosticsPlugin::default(),
         ));
 
-        // Configure the default physics diagnostics UI.
         app.insert_resource(PhysicsDiagnosticsUiSettings {
             enabled: false,
             ..default()
         });
 
-        // Spawn text instructions for keybinds.
         app.add_systems(Startup, setup_key_instructions);
 
         // Add systems for toggling the diagnostics UI and stepping the simulation. Pausing itself
@@ -77,7 +74,7 @@ fn draw_axes(mut gizmos: Gizmos) {
     let origin = Vec3::ZERO;
     let length = 1.0;
 
-    gizmos.line(origin, Vec3::X * length, Color::srgb(1.0, 0.0, 0.0)); // X axis
-    gizmos.line(origin, Vec3::Y * length, Color::srgb(0.0, 1.0, 0.0)); // Y axis
-    gizmos.line(origin, Vec3::Z * length, Color::srgb(0.0, 0.0, 1.0)); // Z axis
+    gizmos.line(origin, Vec3::X * length, Color::srgb(1.0, 0.0, 0.0));
+    gizmos.line(origin, Vec3::Y * length, Color::srgb(0.0, 1.0, 0.0));
+    gizmos.line(origin, Vec3::Z * length, Color::srgb(0.0, 0.0, 1.0));
 }

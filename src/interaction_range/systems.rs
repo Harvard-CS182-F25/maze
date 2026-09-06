@@ -82,7 +82,7 @@ pub fn handle_flag_pickups(
             continue;
         };
 
-        // check to see if the agent is already carrying a flag
+        // An agent can carry at most one flag.
         let carrying_flag = agent_children
             .is_some_and(|children| children.iter().any(|child| flags.get(child).is_ok()));
         if carrying_flag {

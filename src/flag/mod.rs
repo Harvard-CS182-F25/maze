@@ -61,6 +61,7 @@ impl Plugin for FlagPlugin {
 
         app.add_systems(
             FixedPostUpdate,
+            // Flag and capture-point positions are read from their propagated global transforms.
             systems::update_true_grid
                 .after(TransformSystems::Propagate)
                 .in_set(SimulationSets::TrueGrid)
