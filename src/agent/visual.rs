@@ -10,12 +10,14 @@ pub struct AgentGraphicsAssets {
 impl FromWorld for AgentGraphicsAssets {
     fn from_world(world: &mut World) -> Self {
         let mut meshes = world.resource_mut::<Assets<Mesh>>();
-        let mesh = meshes.add(Cuboid::default());
+        let mut mesh = Mesh::from(Cuboid::new(1.0, 2.0, 1.0));
+        mesh.translate_by(Vec3::Y);
+        let mesh = meshes.add(mesh);
 
         let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
-        let material: Handle<StandardMaterial> = materials.add(Color::srgb(1.0, 0.0, 0.0));
+        let material: Handle<StandardMaterial> = materials.add(Color::srgb(1.0, 0.1, 0.2));
         let ghost_material: Handle<StandardMaterial> =
-            materials.add(Color::srgba(1.0, 0.0, 0.0, 0.5));
+            materials.add(Color::srgba(1.0, 0.1, 0.2, 0.5));
 
         Self {
             mesh,

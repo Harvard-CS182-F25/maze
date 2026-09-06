@@ -8,7 +8,7 @@ pub struct WallGraphicsAssets {
 impl FromWorld for WallGraphicsAssets {
     fn from_world(world: &mut World) -> Self {
         let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
-        let material: Handle<StandardMaterial> = materials.add(Color::srgb(0.0, 0.0, 0.0));
+        let material: Handle<StandardMaterial> = materials.add(Color::srgb(0.0, 0.25, 0.5));
 
         Self { material }
     }

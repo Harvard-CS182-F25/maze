@@ -41,9 +41,10 @@ pub struct MazeGenerationConfig {
 pub struct ScenePlugin;
 impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {
+        app.insert_resource(ClearColor(Color::srgb(0.6, 0.8, 0.8)));
         app.insert_resource(AmbientLight {
             color: Color::WHITE,
-            brightness: 1_500.0,
+            brightness: 3_000.0,
             ..Default::default()
         });
 

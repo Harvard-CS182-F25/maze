@@ -5,9 +5,9 @@ use bevy::{
     prelude::*,
 };
 
-const RING_SEGMENTS: usize = 96; // how many dashes
-const RING_ON_RATIO: f32 = 0.75; // % of each segment that is "on"
-const RING_THICKNESS_FRAC: f32 = 0.07; // thickness as a fraction of radius (unit mesh)
+const RING_SEGMENTS: usize = 10; // how many dashes
+const RING_ON_RATIO: f32 = 0.6; // % of each segment that is "on"
+const RING_THICKNESS_FRAC: f32 = 0.15; // thickness as a fraction of radius (unit mesh)
 
 #[derive(Resource)]
 pub struct RingAssets {
@@ -26,8 +26,9 @@ impl FromWorld for RingAssets {
 
         let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
         let material = materials.add(StandardMaterial {
-            base_color: Color::WHITE,
-            emissive: LinearRgba::WHITE,
+            base_color: Color::srgba(0.0, 0.0, 0.0, 0.5),
+            emissive: LinearRgba::new(0.0, 0.0, 0.0, 0.5),
+            alpha_mode: AlphaMode::Blend,
             cull_mode: None,
             ..Default::default()
         });

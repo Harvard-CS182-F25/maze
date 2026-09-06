@@ -405,14 +405,10 @@ fn apply_actions(
 #[allow(clippy::type_complexity)]
 fn update_estimated_position_text(
     bridge: Option<Res<Bridge>>,
-    agent_transform: Query<&Transform, (With<Agent>, Without<GhostAgent>)>,
     mut ghost_agent: Query<(&mut Transform, &mut Visibility), (With<GhostAgent>, Without<Agent>)>,
     mut query: Query<&mut Text, With<EstimatedPositionText>>,
 ) {
     let Some(bridge) = bridge else {
-        return;
-    };
-    let Some(agent_transform) = agent_transform.single().ok() else {
         return;
     };
     let Some((mut ghost_transform, mut ghost_visibility)) = ghost_agent.single_mut().ok() else {
@@ -431,11 +427,7 @@ fn update_estimated_position_text(
         return;
     };
 
-    let error = ((agent_transform.translation.x - x).powi(2)
-        + (agent_transform.translation.z - y).powi(2))
-    .sqrt();
-
-    text.0 = format!("Estimated Agent Position: ({x:.2}, {y:.2}) [{error:.2}]");
+    text.0 = format!("Estimated Position: ({x:.2}, {y:.2})");
     ghost_transform.translation = Vec3::new(x, 0.0, y);
     *ghost_visibility = Visibility::Visible;
 }

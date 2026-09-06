@@ -9,10 +9,10 @@ pub struct FlagGraphicsAssets {
 impl FromWorld for FlagGraphicsAssets {
     fn from_world(world: &mut World) -> Self {
         let mut meshes = world.resource_mut::<Assets<Mesh>>();
-        let mesh = meshes.add(Cylinder::default());
+        let mesh = meshes.add(Torus::new(0.0, 1.0));
 
         let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
-        let material = materials.add(Color::srgb(0.0, 0.0, 1.0));
+        let material = materials.add(Color::srgb(0.6, 0.4, 0.1));
 
         Self { mesh, material }
     }
@@ -27,10 +27,10 @@ pub struct CapturePointGraphicsAssets {
 impl FromWorld for CapturePointGraphicsAssets {
     fn from_world(world: &mut World) -> Self {
         let mut meshes = world.resource_mut::<Assets<Mesh>>();
-        let mesh = meshes.add(Torus::new(0.35, 0.75));
+        let mesh = meshes.add(Torus::new(0.66, 1.33));
 
         let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
-        let material = materials.add(Color::srgb(0.0, 0.0, 1.0));
+        let material = materials.add(Color::srgb(0.85, 0.75, 0.05));
 
         Self { mesh, material }
     }

@@ -2,7 +2,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use crate::agent::Agent;
-use crate::flag::{CapturePoint, Flag, FlagCaptureCounts, FlagStatus};
+use crate::flag::{CapturePoint, FLAG_INTERACTION_RADIUS, Flag, FlagCaptureCounts, FlagStatus};
 use crate::interaction_range::messages::{FlagDropMessage, FlagPickupMessage};
 
 use super::components::{InteractionRadius, InteractionRange, VisibleRange};
@@ -103,7 +103,8 @@ pub fn handle_flag_pickups(
                 commands
                     .entity(flag_entity)
                     .remove::<RigidBody>()
-                    .remove::<Collider>();
+                    .remove::<Collider>()
+                    .remove::<InteractionRadius>();
                 flag.status = FlagStatus::PickedUp;
                 flag_transform.translation = Vec3::new(0.0, 0.5, 0.0); // lift flag above agent
                 break;
@@ -144,9 +145,11 @@ pub fn handle_flag_drop(
 
         if let Ok((flag_entity, mut flag, mut flag_transform)) = flags.get_mut(flag_entity) {
             commands.entity(agent_entity).remove_child(flag_entity);
-            commands
-                .entity(flag_entity)
-                .insert((RigidBody::Kinematic, Collider::cylinder(0.5, 3.0)));
+            commands.entity(flag_entity).insert((
+                RigidBody::Kinematic,
+                Collider::cylinder(0.5, 3.0),
+                InteractionRadius(FLAG_INTERACTION_RADIUS),
+            ));
             flag.status = FlagStatus::Dropped;
             flag_transform.translation = agent_transform.translation
         }
@@ -181,6 +184,10 @@ pub fn handle_flag_capture(
 
             if distance < radius && flag.status == FlagStatus::Dropped {
                 commands.entity(capture_point_entity).add_child(flag_entity);
+                commands.entity(flag_entity).remove::<InteractionRadius>();
+                commands
+                    .entity(capture_point_entity)
+                    .remove::<InteractionRadius>();
                 capture_counts.0 += 1;
                 flag.status = FlagStatus::Captured;
                 flag_transform.translation = Vec3::ZERO;

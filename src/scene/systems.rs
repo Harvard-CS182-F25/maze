@@ -35,7 +35,7 @@ pub fn setup_scene(
 
     if let (Some(meshes), Some(materials)) = (&mut meshes, &mut materials) {
         let mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
-        let material = materials.add(Color::srgb(0.0, 1.0, 0.0));
+        let material = materials.add(Color::srgb(1.0, 1.0, 1.0));
         entity.insert((Mesh3d(mesh), MeshMaterial3d(material)));
     }
 }
@@ -213,31 +213,31 @@ pub fn setup_hud(mut commands: Commands, config: Res<MazeConfig>, time: Res<Time
             ));
 
             parent.spawn((
-                Text::new("True Agent Position:"),
+                Text::new("True Position: n/a"),
                 line_font.clone(),
                 line_layout,
                 TruePositionText,
             ));
 
             parent.spawn((
-                Text::new("Estimated Agent Position: unavailable"),
+                Text::new("Estimated Position: n/a"),
                 line_font.clone(),
                 line_layout,
                 EstimatedPositionText,
             ));
 
             parent.spawn((
-                Text::new("Mapping Error:"),
-                line_font.clone(),
-                line_layout,
-                MappingErrorText,
-            ));
-
-            parent.spawn((
-                Text::new("Flags: 0/0"),
+                Text::new("Flags: n/a"),
                 line_font.clone(),
                 line_layout,
                 FlagProgressText,
+            ));
+
+            parent.spawn((
+                Text::new("Mapping Error: n/a"),
+                line_font.clone(),
+                line_layout,
+                MappingErrorText,
             ));
 
             parent.spawn(Node {
@@ -361,7 +361,7 @@ pub fn update_mapping_error(
     let error_rate = (wrong as f32) / total.max(1) as f32 * 100.0;
 
     for mut text in query.iter_mut() {
-        text.0 = format!("Mapping Error: {wrong}/{total} [{error_rate:.1}%]");
+        text.0 = format!("Mapping Error: {error_rate:.1}%");
     }
 }
 
@@ -375,7 +375,7 @@ pub fn update_true_position(
 
     for mut text in query.iter_mut() {
         text.0 = format!(
-            "True Agent Position: ({:.2}, {:.2})",
+            "True Position: ({:.2}, {:.2})",
             agent_transform.translation.x, agent_transform.translation.z
         );
     }
