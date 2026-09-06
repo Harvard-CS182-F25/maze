@@ -55,7 +55,7 @@ pub fn movement(
 
                                 if !*announced_overspeed {
                                     *announced_overspeed = true;
-                                    eprintln!(
+                                    warn!(
                                         "Agent {} asked to move at {}, above its max speed of {}. Capping, \
                                          and not reporting this again.",
                                         entity.index(),

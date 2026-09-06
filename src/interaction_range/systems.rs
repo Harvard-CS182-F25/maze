@@ -72,13 +72,14 @@ pub fn remove_ring_on_radius_removal(
 pub fn handle_flag_pickups(
     mut commands: Commands,
     mut reader: MessageReader<FlagPickupMessage>,
+    mut announced_out_of_range: Local<bool>,
     agents: Query<(Entity, &Transform, Option<&Children>), With<Agent>>,
     mut flags: Query<(Entity, &mut Flag, &mut Transform, &InteractionRadius), Without<Agent>>,
 ) {
     for FlagPickupMessage { agent_id } in reader.read() {
         let agent = agents.iter().find(|(e, _, _)| e.index() == *agent_id);
         let Some((agent_entity, agent_transform, agent_children)) = agent else {
-            eprintln!("Agent with id {} either does not exist", agent_id);
+            warn!("No agent with id {agent_id} exists");
             continue;
         };
 
@@ -86,17 +87,23 @@ pub fn handle_flag_pickups(
         let carrying_flag = agent_children
             .is_some_and(|children| children.iter().any(|child| flags.get(child).is_ok()));
         if carrying_flag {
-            eprintln!(
-                "Agent with id {} is already carrying a flag and can not pick up another",
-                agent_id
-            );
+            warn!("Agent {agent_id} is already carrying a flag and cannot pick up another");
             continue;
         }
 
         let agent_position = agent_transform.translation.xz();
+        let mut picked_up = false;
+        let mut nearest: Option<(f32, f32)> = None;
+
         for (flag_entity, mut flag, mut flag_transform, InteractionRadius(radius)) in &mut flags {
             let flag_position = flag_transform.translation.xz();
             let distance = agent_position.distance(flag_position);
+
+            if flag.status == FlagStatus::Dropped
+                && nearest.is_none_or(|(nearest, _)| distance < nearest)
+            {
+                nearest = Some((distance, *radius));
+            }
 
             if distance < *radius && flag.status == FlagStatus::Dropped {
                 commands.entity(agent_entity).add_child(flag_entity);
@@ -107,7 +114,24 @@ pub fn handle_flag_pickups(
                     .remove::<InteractionRadius>();
                 flag.status = FlagStatus::PickedUp;
                 flag_transform.translation = Vec3::new(0.0, 0.5, 0.0); // lift flag above agent
+                picked_up = true;
                 break;
+            }
+        }
+
+        // Reaching for a flag that is not there is the one failure the agent got no word about,
+        // and it is the one students hit while debugging a navigation bug.
+        if !picked_up && !*announced_out_of_range {
+            *announced_out_of_range = true;
+            match nearest {
+                Some((distance, radius)) => warn!(
+                    "Agent {agent_id} tried to pick up a flag, but the nearest dropped one is \
+                     {distance:.1} units away and must be within {radius:.1}. Not reporting this again."
+                ),
+                None => warn!(
+                    "Agent {agent_id} tried to pick up a flag, but none are on the ground to pick \
+                     up. Not reporting this again."
+                ),
             }
         }
     }
@@ -122,7 +146,7 @@ pub fn handle_flag_drop(
     for FlagDropMessage { agent_id } in reader.read() {
         let agent = agents.iter().find(|(e, _, _)| e.index() == *agent_id);
         let Some((agent_entity, agent_transform, agent_children)) = agent else {
-            eprintln!("Agent with id {} either does not exist", agent_id);
+            warn!("No agent with id {agent_id} exists");
             continue;
         };
 
@@ -136,10 +160,7 @@ pub fn handle_flag_drop(
             })
         });
         let Some(flag_entity) = flag_entity else {
-            eprintln!(
-                "Agent with id {} is not carrying a flag and can not drop one",
-                agent_id
-            );
+            warn!("Agent {agent_id} is not carrying a flag and cannot drop one");
             continue;
         };
 

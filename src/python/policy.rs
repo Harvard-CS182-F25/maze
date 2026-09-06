@@ -192,13 +192,13 @@ impl PolicyBridge {
                             EstimatedPosition::Reported(_) => {}
                             EstimatedPosition::NotDefined if !announced_missing => {
                                 announced_missing = true;
-                                eprintln!(
+                                warn!(
                                     "Policy defines no `estimated_position`; skipping the estimated-position marker"
                                 );
                             }
                             EstimatedPosition::Unreadable(why) if !announced_unreadable => {
                                 announced_unreadable = true;
-                                eprintln!(
+                                warn!(
                                     "Policy has an `estimated_position` that could not be read, so the \
                                      estimated-position marker is being skipped: {why}"
                                 );
@@ -217,9 +217,10 @@ impl PolicyBridge {
                         }
                     }
                     Err(e) => {
-                        // Print the full traceback for the human at the terminal, but record the
-                        // one-line exception text, which is what ends up in `GameResult`.
-                        eprintln!("Error calling policy: {e:#?}");
+                        // Let Python print the traceback in the format the student already reads;
+                        // formatting a `PyErr` from Rust escapes the whole thing onto one line.
+                        Python::attach(|py| e.display(py));
+                        error!("Policy raised {e}; stopping the run");
                         worker_error.set(e.to_string());
                         break; // exit thread on error
                     }
@@ -343,7 +344,7 @@ fn apply_actions(
     {
         Ok(action) => action,
         Err(RecvTimeoutError::Timeout) => {
-            eprintln!(
+            error!(
                 "Policy did not respond within {}s; stopping",
                 LOCKSTEP_POLICY_TIMEOUT.as_secs()
             );
@@ -425,7 +426,7 @@ fn on_test_harness_stop(bridge: Option<Res<Bridge>>, mut exit: MessageWriter<App
     if let Some(test) = &bridge.test_bridge
         && test.rx_stop.try_recv().is_ok()
     {
-        println!("Test harness requested stop; exiting");
+        info!("Test harness requested stop; exiting");
 
         exit.write(AppExit::Success);
     }

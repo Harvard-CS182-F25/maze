@@ -11,6 +11,7 @@ mod python;
 mod scene;
 mod teleop;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
 use avian3d::prelude::*;
@@ -49,6 +50,12 @@ fn parse_config(config_path: &str) -> PyResult<MazeConfig> {
     Ok(config)
 }
 
+/// Whether some app in this process has already installed a tracing subscriber. Bevy's `LogPlugin`
+/// installs a process-global one and logs an alarming error rather than failing when it cannot, so
+/// an evaluation harness playing several games back to back would otherwise report a logging
+/// failure on every run after the first.
+static LOGGER_INSTALLED: AtomicBool = AtomicBool::new(false);
+
 fn generate_app(
     config: MazeConfig,
     policy: Py<PyAny>,
@@ -59,6 +66,13 @@ fn generate_app(
     let policy_hz = config.agent.active_policy_hz();
 
     if config.headless {
+        // `MinimalPlugins` carries no `LogPlugin`, so without this every `info!` and `warn!` the
+        // engine raises — the maze seed, an unplaceable flag, a capped velocity — is discarded in
+        // exactly the mode used for grading.
+        if !LOGGER_INSTALLED.swap(true, Ordering::Relaxed) {
+            app.add_plugins(bevy::log::LogPlugin::default());
+        }
+
         // No window or GPU, but physics and flag parenting still need transforms and scene assets.
         app.add_plugins(
             MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(std::time::Duration::ZERO)),
@@ -81,6 +95,9 @@ fn generate_app(
             }),
             ..Default::default()
         }));
+
+        // `DefaultPlugins` brings its own `LogPlugin`.
+        LOGGER_INSTALLED.store(true, Ordering::Relaxed);
 
         app.add_systems(Update, force_focus);
     }
