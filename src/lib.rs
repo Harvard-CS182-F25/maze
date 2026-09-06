@@ -52,29 +52,20 @@ fn generate_app(
 ) -> App {
     let mut app = App::new();
 
+    let policy_hz = config.agent.effective_policy_hz();
+
     if config.headless {
-        // No window and no GPU: just the scheduler plus the pieces the sim genuinely needs.
-        // `TransformPlugin` is not part of `MinimalPlugins`, but avian and the flag-parenting
-        // hierarchy both depend on transform propagation.
+        // No window or GPU, but physics and flag parenting still need transforms and scene assets.
         app.add_plugins(
             MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(std::time::Duration::ZERO)),
         );
         app.add_plugins(TransformPlugin);
-        // Nothing loads assets headlessly, but avian's collider cache watches `AssetEvent<Mesh>`
-        // and a system whose message type was never registered is a hard error, not a skip.
         app.add_plugins(AssetPlugin::default());
         app.init_asset::<Mesh>();
-        // Avian's collider-constructor systems also want `SceneSpawner`.
         app.add_plugins(bevy::scene::ScenePlugin);
-        // Likewise, a run condition that reads a missing `ButtonInput<KeyCode>` aborts the app
-        // rather than evaluating false. With no window nothing ever writes input events, so every
-        // key-gated system simply never fires.
         app.add_plugins(InputPlugin);
 
-        // Advance the clock by a fixed step per frame instead of tracking wall-clock time. This is
-        // what lets a 300 simulated-second run finish in seconds, and what makes two runs with the
-        // same seed identical.
-        let policy_hz = config.agent.effective_policy_hz();
+        // One app update advances exactly one simulation tick.
         app.insert_resource(TimeUpdateStrategy::ManualDuration(
             std::time::Duration::from_secs_f64(1.0 / policy_hz as f64),
         ));
@@ -90,6 +81,7 @@ fn generate_app(
         app.add_systems(Update, force_focus);
     }
 
+    app.insert_resource(Time::<Fixed>::from_hz(policy_hz as f64));
     app.add_plugins((PhysicsPlugins::default(),));
 
     // The debug plugin pulls in egui and physics debug rendering, neither of which exists headless.
@@ -99,7 +91,6 @@ fn generate_app(
 
     app.add_plugins((
         PythonPolicyBridgePlugin {
-            config: config.clone(),
             agent_policy: policy,
             test_harness,
         },
@@ -217,6 +208,56 @@ fn force_focus(
         if let Some(win) = winit_windows.get_window(ev.window) {
             win.focus_window();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use bevy::prelude::*;
+    use bevy::time::TimeUpdateStrategy;
+
+    #[derive(Resource, Default)]
+    struct TickLog(Vec<f32>);
+
+    fn record_tick(time: Res<Time<Fixed>>, mut ticks: ResMut<TickLog>) {
+        ticks.0.push(time.delta_secs());
+    }
+
+    fn app_with_frame_duration(frame_duration: Duration) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(Time::<Fixed>::from_hz(60.0));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(frame_duration));
+        app.init_resource::<TickLog>();
+        app.add_systems(FixedUpdate, record_tick);
+        app
+    }
+
+    #[test]
+    fn fixed_ticks_are_independent_of_frame_batching() {
+        let tick = Duration::from_secs_f64(1.0 / 60.0);
+        let mut normal = app_with_frame_duration(tick);
+        let mut batched = app_with_frame_duration(tick * 4);
+
+        for _ in 0..13 {
+            normal.update();
+        }
+        for _ in 0..4 {
+            batched.update();
+        }
+
+        let normal_ticks = normal.world().resource::<TickLog>();
+        let batched_ticks = batched.world().resource::<TickLog>();
+        assert_eq!(normal_ticks.0.len(), 12);
+        assert_eq!(normal_ticks.0, batched_ticks.0);
+        assert!(
+            normal_ticks
+                .0
+                .iter()
+                .all(|dt| (*dt - 1.0 / 60.0).abs() < f32::EPSILON)
+        );
     }
 }
 

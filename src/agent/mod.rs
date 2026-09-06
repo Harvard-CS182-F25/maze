@@ -50,14 +50,10 @@ impl AgentConfig {
     const MIN_POLICY_HZ: f32 = 1.0;
     const MAX_POLICY_HZ: f32 = 240.0;
 
-    /// The bounded rate used by both the policy timer and the headless clock.
+    /// The bounded rate of the fixed simulation clock.
     pub(crate) fn effective_policy_hz(&self) -> f32 {
         self.policy_hz
             .clamp(Self::MIN_POLICY_HZ, Self::MAX_POLICY_HZ)
-    }
-
-    pub(crate) fn policy_interval_secs(&self) -> f32 {
-        self.effective_policy_hz().recip()
     }
 }
 
@@ -107,7 +103,6 @@ mod tests {
                 ..Default::default()
             };
             assert_eq!(config.effective_policy_hz(), effective);
-            assert!((config.policy_interval_secs() - effective.recip()).abs() < f32::EPSILON);
         }
     }
 }

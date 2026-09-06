@@ -46,6 +46,16 @@ pub enum StartupSets {
     Agents,
 }
 
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SimulationSets {
+    Policy,
+    Controller,
+    Interactions,
+    Capture,
+    TrueGrid,
+    Metrics,
+}
+
 #[gen_stub_pymethods]
 #[pymethods]
 impl MazeConfig {
@@ -104,6 +114,24 @@ impl Plugin for MazePlugin {
                 StartupSets::Walls,
                 StartupSets::FlagsAndCapturePoints,
                 StartupSets::Agents,
+            )
+                .chain(),
+        );
+        app.configure_sets(
+            FixedUpdate,
+            (
+                SimulationSets::Policy,
+                SimulationSets::Controller,
+                SimulationSets::Interactions,
+            )
+                .chain(),
+        );
+        app.configure_sets(
+            FixedPostUpdate,
+            (
+                SimulationSets::Capture,
+                SimulationSets::TrueGrid,
+                SimulationSets::Metrics,
             )
                 .chain(),
         );

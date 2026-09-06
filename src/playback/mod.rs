@@ -1,9 +1,6 @@
 //!
-//! Everything here drives [`Time<Virtual>`] rather than `Time<Physics>`. That is what makes the
-//! controls correct rather than merely convenient: avian's physics clock and Bevy's default
-//! `Res<Time>` — which gates the policy tick in `send_game_states` — both derive from virtual
-//! time, so physics, the rate `get_action` is called at, the `dt` handed to it, and the HUD clock
-//! all pause and scale together.
+//! Playback controls drive virtual time. Higher speeds run more fixed simulation ticks between
+//! rendered frames; they do not change a tick's duration.
 
 use bevy::prelude::*;
 

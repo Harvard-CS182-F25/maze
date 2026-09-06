@@ -3,9 +3,10 @@ mod messages;
 mod systems;
 mod visual;
 
+use avian3d::prelude::PhysicsSystems;
 use bevy::prelude::*;
 
-use crate::core::MazeConfig;
+use crate::core::{MazeConfig, SimulationSets};
 
 pub use crate::interaction_range::components::*;
 pub use crate::interaction_range::messages::*;
@@ -31,13 +32,16 @@ impl Plugin for InteractionRangePlugin {
         );
 
         app.add_systems(
-            Update,
-            (
-                systems::handle_flag_pickups,
-                systems::handle_flag_drop,
-                systems::handle_flag_capture,
-            )
-                .chain(),
+            FixedUpdate,
+            (systems::handle_flag_pickups, systems::handle_flag_drop)
+                .chain()
+                .in_set(SimulationSets::Interactions),
+        );
+        app.add_systems(
+            FixedPostUpdate,
+            systems::handle_flag_capture
+                .after(PhysicsSystems::Writeback)
+                .in_set(SimulationSets::Capture),
         );
     }
 }

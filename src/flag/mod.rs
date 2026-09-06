@@ -2,7 +2,7 @@ mod components;
 mod systems;
 mod visual;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, transform::TransformSystems};
 use derivative::Derivative;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::gen_stub_pyclass;
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 pub use components::*;
 
-use crate::core::{MazeConfig, StartupSets};
+use crate::core::{MazeConfig, SimulationSets, StartupSets};
 
 pub const FLAG_INTERACTION_RADIUS: f32 = 3.0;
 pub const CAPTURE_POINT_INTERACTION_RADIUS: f32 = 3.0;
@@ -60,8 +60,11 @@ impl Plugin for FlagPlugin {
         );
 
         app.add_systems(
-            Update,
-            systems::update_true_grid.run_if(|config: Res<MazeConfig>| !config.headless),
+            FixedPostUpdate,
+            systems::update_true_grid
+                .after(TransformSystems::Propagate)
+                .in_set(SimulationSets::TrueGrid)
+                .run_if(|config: Res<MazeConfig>| !config.headless || config.use_true_map),
         );
     }
 }

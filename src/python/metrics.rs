@@ -10,7 +10,7 @@ use bevy::prelude::*;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
-use crate::core::MazeConfig;
+use crate::core::{MazeConfig, SimulationSets};
 use crate::flag::{Flag, FlagCaptureCounts};
 use crate::occupancy_grid::{PlayerGrid, TrueGrid};
 use crate::python::policy::PolicyErrorSlot;
@@ -204,7 +204,12 @@ impl Plugin for MetricsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MetricsState>();
         app.add_systems(Startup, init_metrics);
-        app.add_systems(Update, (record_metrics, check_stop_conditions).chain());
+        app.add_systems(
+            FixedPostUpdate,
+            (record_metrics, check_stop_conditions)
+                .chain()
+                .in_set(SimulationSets::Metrics),
+        );
         // Must run before `shutdown_workers_on_exit`, which is also in `Last`.
         app.add_systems(Last, report_result);
     }
@@ -221,7 +226,7 @@ fn init_metrics(
 }
 
 fn record_metrics(
-    time: Res<Time>,
+    time: Res<Time<Fixed>>,
     mut state: ResMut<MetricsState>,
     metrics_config: Res<MetricsConfig>,
     player_grid: Res<PlayerGrid>,
@@ -260,7 +265,7 @@ fn record_metrics(
 }
 
 fn check_stop_conditions(
-    time: Res<Time>,
+    time: Res<Time<Fixed>>,
     mut state: ResMut<MetricsState>,
     metrics_config: Res<MetricsConfig>,
     mut exit: MessageWriter<AppExit>,
