@@ -238,6 +238,7 @@ fn init_metrics(
     state.maze_seed = config.maze_generation.seed.unwrap_or(0);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn record_metrics(
     time: Res<Time<Fixed>>,
     mut state: ResMut<MetricsState>,

@@ -45,7 +45,7 @@ impl MazeGenerationConfig {
             ("maze_generation.world_height", self.world_height),
             ("maze_generation.cell_size", self.cell_size),
         ] {
-            if !(value > 0.0) || !value.is_finite() {
+            if !value.is_finite() || value <= 0.0 {
                 return Err(format!("{name} must be positive; got {value}"));
             }
         }
@@ -99,6 +99,7 @@ impl Plugin for ScenePlugin {
             Update,
             (
                 systems::update_time,
+                systems::update_simulation_speed,
                 systems::update_true_position,
                 systems::update_mapping_metrics,
                 systems::update_flag_progress,

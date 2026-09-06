@@ -84,7 +84,8 @@ impl MazeConfig {
     pub(crate) fn occupancy_grid_dimensions(&self) -> (i32, i32) {
         (
             (self.maze_generation.world_width / self.agent.occupancy_grid_cell_size).round() as i32,
-            (self.maze_generation.world_height / self.agent.occupancy_grid_cell_size).round() as i32,
+            (self.maze_generation.world_height / self.agent.occupancy_grid_cell_size).round()
+                as i32,
         )
     }
 
@@ -217,23 +218,37 @@ mod tests {
         degenerate.agent.position_stddev = 0.0;
         assert!(degenerate.validate_settings().is_ok());
 
-        let cases: [(&str, fn(&mut MazeConfig)); 7] = [
-            ("negative max_speed", |c| c.agent.max_speed = -1.0),
-            ("negative stddev", |c| c.agent.position_stddev = -1.0),
-            ("zero grid cell", |c| c.agent.occupancy_grid_cell_size = 0.0),
-            ("negative grid cell", |c| c.agent.occupancy_grid_cell_size = -1.0),
-            ("zero world", |c| c.maze_generation.world_width = 0.0),
-            ("zero maze cell", |c| c.maze_generation.cell_size = 0.0),
-            ("maze cell larger than the world", |c| {
-                c.maze_generation.cell_size = 1000.0
-            }),
-        ];
-
-        for (name, break_it) in cases {
+        let rejects = |break_it: fn(&mut MazeConfig)| {
             let mut config = MazeConfig::default();
             break_it(&mut config);
-            assert!(config.validate_settings().is_err(), "{name} was accepted");
-        }
+            config.validate_settings().is_err()
+        };
+
+        assert!(rejects(|c| c.agent.max_speed = -1.0), "negative max_speed");
+        assert!(
+            rejects(|c| c.agent.position_stddev = -1.0),
+            "negative stddev"
+        );
+        assert!(
+            rejects(|c| c.agent.occupancy_grid_cell_size = 0.0),
+            "zero grid cell"
+        );
+        assert!(
+            rejects(|c| c.agent.occupancy_grid_cell_size = -1.0),
+            "negative grid cell"
+        );
+        assert!(
+            rejects(|c| c.maze_generation.world_width = 0.0),
+            "zero world"
+        );
+        assert!(
+            rejects(|c| c.maze_generation.cell_size = 0.0),
+            "zero maze cell"
+        );
+        assert!(
+            rejects(|c| c.maze_generation.cell_size = 1000.0),
+            "maze cell larger than the world"
+        );
     }
 
     #[test]

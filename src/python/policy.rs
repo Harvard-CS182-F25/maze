@@ -61,6 +61,13 @@ struct PolicyBridge {
 /// One policy tick: the observation, the grid the agent writes into, and elapsed simulated time.
 type PolicyRequest = (GameState, Arc<RwLock<Py<OccupancyGrid>>>, f32);
 
+/// How long the simulation spends waiting on one `get_action` call, smoothed. In lockstep this is
+/// the policy's own cost, and it is what decides whether the game can keep up with real time.
+#[derive(Resource, Default)]
+pub struct PolicyCost {
+    pub smoothed_seconds: f32,
+}
+
 /// The `estimated_position` a policy reported, if it reported a usable one. Not defining the
 /// attribute is allowed — a teleop shim has no position estimate — but defining one that cannot be
 /// read is a bug in the policy rather than a choice, so the two are kept apart.
@@ -138,6 +145,7 @@ impl Plugin for PythonPolicyBridgePlugin {
             elapsed_since_dispatch: 0.0,
             awaiting_action: false,
         });
+        app.init_resource::<PolicyCost>();
 
         // A policy tick observes the world, then applies its matching action.
         app.add_systems(
@@ -322,6 +330,7 @@ fn apply_actions(
     bridge: Option<Res<Bridge>>,
     config: Res<MazeConfig>,
     mut schedule: ResMut<PolicySchedule>,
+    mut policy_cost: ResMut<PolicyCost>,
     agents: Query<(Entity, &Agent)>,
     mut movement_event_writer: MessageWriter<MovementMessage>,
     mut pickup_event_writer: MessageWriter<FlagPickupMessage>,
@@ -337,12 +346,17 @@ fn apply_actions(
         return;
     };
 
+    let waited_from = std::time::Instant::now();
     let action = match bridge
         .agent_bridge
         .rx_action
         .recv_timeout(LOCKSTEP_POLICY_TIMEOUT)
     {
-        Ok(action) => action,
+        Ok(action) => {
+            let waited = waited_from.elapsed().as_secs_f32();
+            policy_cost.smoothed_seconds += (waited - policy_cost.smoothed_seconds) * 0.1;
+            action
+        }
         Err(RecvTimeoutError::Timeout) => {
             error!(
                 "Policy did not respond within {}s; stopping",

@@ -4,6 +4,7 @@ use maze_generator::prelude::*;
 use maze_generator::recursive_backtracking::RbGenerator;
 use pyo3::prelude::*;
 
+use crate::python::policy::PolicyCost;
 use crate::{
     agent::{Agent, COLLISION_LAYER_AGENT},
     core::MazeConfig,
@@ -12,8 +13,8 @@ use crate::{
     python::game_state::{EntityType, SensorRng},
     scene::{
         COLLISION_LAYER_WALL, EstimatedPositionText, FlagProgressText, MappingMetricsText,
-        TimeText, TruePositionText, WALL_HEIGHT, WALL_THICKNESS, WallBundle, WallGraphicsAssets,
-        WallSegments,
+        SimulationSpeedText, TimeText, TruePositionText, WALL_HEIGHT, WALL_THICKNESS, WallBundle,
+        WallGraphicsAssets, WallSegments,
     },
 };
 
@@ -211,6 +212,13 @@ pub fn setup_hud(mut commands: Commands, config: Res<MazeConfig>, time: Res<Time
             ));
 
             parent.spawn((
+                Text::new("Speed: n/a"),
+                line_font.clone(),
+                line_layout,
+                SimulationSpeedText,
+            ));
+
+            parent.spawn((
                 Text::new("True Position: n/a"),
                 line_font.clone(),
                 line_layout,
@@ -223,6 +231,11 @@ pub fn setup_hud(mut commands: Commands, config: Res<MazeConfig>, time: Res<Time
                 line_layout,
                 EstimatedPositionText,
             ));
+
+            parent.spawn(Node {
+                height: Val::Px(14.0),
+                ..default()
+            });
 
             parent.spawn((
                 Text::new("Flags: n/a"),
@@ -304,6 +317,50 @@ pub fn setup_hud(mut commands: Commands, config: Res<MazeConfig>, time: Res<Time
 pub fn update_time(mut query: Query<&mut Text, With<TimeText>>, time: Res<Time>) {
     for mut text in query.iter_mut() {
         text.0 = format!("Time: {:.2}s", time.elapsed_secs());
+    }
+}
+
+/// Reports how fast simulated time is advancing against the wall clock, and what the policy costs.
+///
+/// The simulation waits for `get_action` rather than skipping ahead, so a slow policy shows up as
+/// the whole game running in slow motion. Without this the only symptom is an agent that seems to
+/// crawl, which reads as a bug in the agent.
+pub fn update_simulation_speed(
+    real_time: Res<Time<Real>>,
+    simulated_time: Res<Time<Fixed>>,
+    policy_cost: Option<Res<PolicyCost>>,
+    mut previous_simulated: Local<Option<f32>>,
+    mut window: Local<(f32, f32)>,
+    mut query: Query<&mut Text, With<SimulationSpeedText>>,
+) {
+    /// Long enough for the ratio to settle, and to keep the number readable rather than flickering.
+    const WINDOW_SECONDS: f32 = 0.5;
+
+    let now = simulated_time.elapsed_secs();
+    let Some(previous) = previous_simulated.replace(now) else {
+        return;
+    };
+
+    // Totals over a window rather than an average of per-frame ratios: a frame that runs no fixed
+    // tick and one that runs two are not equally weighted samples, so averaging their ratios reads
+    // low even when the simulation is keeping up.
+    let (simulated_elapsed, real_elapsed) = &mut *window;
+    *simulated_elapsed += now - previous;
+    *real_elapsed += real_time.delta_secs();
+    if *real_elapsed < WINDOW_SECONDS {
+        return;
+    }
+
+    let speed = format!("Speed: {:.2}x", *simulated_elapsed / *real_elapsed);
+    *window = (0.0, 0.0);
+
+    let line = match policy_cost.map(|cost| cost.smoothed_seconds) {
+        Some(seconds) => format!("{speed} (policy {:.1}ms)", seconds * 1000.0),
+        None => speed,
+    };
+
+    for mut text in query.iter_mut() {
+        text.0 = line.clone();
     }
 }
 
