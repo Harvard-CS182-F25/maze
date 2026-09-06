@@ -27,6 +27,7 @@ pub fn update_grounded(
 #[allow(clippy::type_complexity)]
 pub fn movement(
     mut movement_event_reader: MessageReader<MovementMessage>,
+    mut announced_overspeed: Local<bool>,
     mut controllers: Query<(
         Entity,
         Option<&MaxLinearSpeed>,
@@ -52,13 +53,16 @@ pub fn movement(
                                 linear_velocity.x = velocity.x * scale;
                                 linear_velocity.z = velocity.y * scale;
 
-                                eprintln!(
-                                    "Agent {} attemped to move too quickly. Capping speed {} to max {} (scale {})",
-                                    entity.index(),
-                                    speed,
-                                    max_speed.0,
-                                    scale
-                                );
+                                if !*announced_overspeed {
+                                    *announced_overspeed = true;
+                                    eprintln!(
+                                        "Agent {} asked to move at {}, above its max speed of {}. Capping, \
+                                         and not reporting this again.",
+                                        entity.index(),
+                                        speed,
+                                        max_speed.0
+                                    );
+                                }
 
                                 continue;
                             }

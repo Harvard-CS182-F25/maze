@@ -4,6 +4,7 @@ use std::time::Duration;
 use avian3d::prelude::SpatialQuery;
 use bevy::prelude::*;
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender, TrySendError};
+use pyo3::exceptions::PyAttributeError;
 use pyo3::prelude::*;
 
 use crate::agent::{GhostAgent, RayCasters};
@@ -59,6 +60,26 @@ struct PolicyBridge {
 
 /// One policy tick: the observation, the grid the agent writes into, and elapsed simulated time.
 type PolicyRequest = (GameState, Arc<RwLock<Py<OccupancyGrid>>>, f32);
+
+/// The `estimated_position` a policy reported, if it reported a usable one. Not defining the
+/// attribute is allowed — a teleop shim has no position estimate — but defining one that cannot be
+/// read is a bug in the policy rather than a choice, so the two are kept apart.
+enum EstimatedPosition {
+    Reported((f32, f32)),
+    NotDefined,
+    Unreadable(String),
+}
+
+fn read_estimated_position(py: Python<'_>, policy: &Py<PyAny>) -> EstimatedPosition {
+    match policy.getattr(py, "estimated_position") {
+        Ok(position) => match position.extract::<(f32, f32)>(py) {
+            Ok(position) => EstimatedPosition::Reported(position),
+            Err(err) => EstimatedPosition::Unreadable(err.to_string()),
+        },
+        Err(err) if err.is_instance_of::<PyAttributeError>(py) => EstimatedPosition::NotDefined,
+        Err(err) => EstimatedPosition::Unreadable(err.to_string()),
+    }
+}
 
 /// When the policy is next due, in simulated time. The simulation ticks at a fixed rate; the
 /// policy runs on whichever of those ticks its own `policy_hz` lands on.
@@ -150,41 +171,45 @@ impl PolicyBridge {
         let worker_error = error.clone();
 
         std::thread::spawn(move || {
-            // The `estimated_position` attribute is optional: an agent that does not estimate its own
-            // position (a teleop shim, say) simply gets no ghost marker. Warn once rather than
-            // every tick.
-            let mut warned_missing_estimated_position = false;
+            let mut announced_missing = false;
+            let mut announced_unreadable = false;
 
             while let Ok((state, grid, dt)) = rx_state.recv() {
                 let action_and_position =
-                    Python::attach(|py| -> PyResult<(Action, Option<(f32, f32)>)> {
+                    Python::attach(|py| -> PyResult<(Action, EstimatedPosition)> {
                         let state = Py::new(py, state)?;
                         let grid = Py::new(py, OccupancyGridView { inner: grid })?;
                         let action: Action = policy
                             .call_method(py, "get_action", (state, grid, dt), None)?
                             .extract(py)?;
 
-                        let estimated_position = match policy.getattr(py, "estimated_position") {
-                            Ok(position) => position.extract::<(f32, f32)>(py).ok(),
-                            Err(_) => None,
-                        };
-
-                        Ok((action, estimated_position))
+                        Ok((action, read_estimated_position(py, &policy)))
                     });
 
                 match action_and_position {
                     Ok((action, estimated_position)) => {
-                        if !warned_missing_estimated_position && estimated_position.is_none() {
-                            warned_missing_estimated_position = true;
-                            eprintln!(
-                                "Policy has no usable `estimated_position` attribute; skipping the estimated-position marker"
-                            );
+                        match &estimated_position {
+                            EstimatedPosition::Reported(_) => {}
+                            EstimatedPosition::NotDefined if !announced_missing => {
+                                announced_missing = true;
+                                eprintln!(
+                                    "Policy defines no `estimated_position`; skipping the estimated-position marker"
+                                );
+                            }
+                            EstimatedPosition::Unreadable(why) if !announced_unreadable => {
+                                announced_unreadable = true;
+                                eprintln!(
+                                    "Policy has an `estimated_position` that could not be read, so the \
+                                     estimated-position marker is being skipped: {why}"
+                                );
+                            }
+                            _ => {}
                         }
 
                         if let Err(TrySendError::Disconnected(_)) = tx_action.try_send(action) {
                             break; // main thread has exited
                         }
-                        if let Some(estimated_position) = estimated_position
+                        if let EstimatedPosition::Reported(estimated_position) = estimated_position
                             && let Err(TrySendError::Disconnected(_)) =
                                 tx_estimated_position.try_send(estimated_position)
                         {
