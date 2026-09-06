@@ -12,8 +12,8 @@ pub use components::*;
 
 use crate::core::{MazeConfig, SimulationSets, StartupSets};
 
-pub const FLAG_INTERACTION_RADIUS: f32 = 3.0;
-pub const CAPTURE_POINT_INTERACTION_RADIUS: f32 = 3.0;
+pub(crate) const FLAG_INTERACTION_RADIUS: f32 = 3.0;
+pub(crate) const CAPTURE_POINT_INTERACTION_RADIUS: f32 = 3.0;
 pub const COLLISION_LAYER_FLAG: u32 = 1 << 2;
 pub const COLLISION_LAYER_CAPTURE_POINT: u32 = 1 << 3;
 
@@ -30,6 +30,38 @@ pub struct FlagConfig {
     #[pyo3(get, set)]
     #[derivative(Default(value = "1"))]
     pub capture_point_count: usize,
+
+    /// How close the agent must be to a dropped flag to pick it up.
+    #[pyo3(get, set)]
+    #[derivative(Default(value = "FLAG_INTERACTION_RADIUS"))]
+    pub flag_radius: f32,
+
+    /// How close a dropped flag must be to a capture point to be captured.
+    #[pyo3(get, set)]
+    #[derivative(Default(value = "CAPTURE_POINT_INTERACTION_RADIUS"))]
+    pub capture_point_radius: f32,
+}
+
+impl FlagConfig {
+    /// Flags and capture points are spawned this far from walls and from each other, so that a
+    /// reachable flag never sits inside a wall's clearance or on top of another one.
+    pub(crate) fn spawn_clearance(&self) -> f32 {
+        self.flag_radius.max(self.capture_point_radius)
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), String> {
+        // Zero is degenerate but coherent: the agent has to stand on the flag exactly.
+        for (name, value) in [
+            ("flags.flag_radius", self.flag_radius),
+            ("flags.capture_point_radius", self.capture_point_radius),
+        ] {
+            if !value.is_finite() || value < 0.0 {
+                return Err(format!("{name} must be zero or positive; got {value}"));
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[pymethods]

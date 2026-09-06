@@ -88,13 +88,19 @@ pub struct AgentBundle {
 }
 
 impl AgentBundle {
-    pub fn new(name: &str, position: Vec3, max_speed: f32, max_distance: f32) -> Self {
+    pub fn new(
+        name: &str,
+        position: Vec3,
+        max_speed: f32,
+        raycast_count: u32,
+        raycast_max_distance: f32,
+    ) -> Self {
         Self {
             name: Name::new(name.to_string()),
             agent: Agent,
             position: Transform::from_translation(position),
             max_speed: MaxLinearSpeed(max_speed),
-            raycasters: RayCasters::new(NUM_AGENT_RAYS, max_distance),
+            raycasters: RayCasters::new(raycast_count, raycast_max_distance),
             ..Default::default()
         }
     }

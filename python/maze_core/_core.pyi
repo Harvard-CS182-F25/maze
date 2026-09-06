@@ -83,6 +83,32 @@ class AgentConfig:
     @range_stddev.setter
     def range_stddev(self, value: builtins.float) -> None: ...
     @property
+    def raycast_count(self) -> builtins.int:
+        r"""
+        How many rays the agent casts, spread evenly over a full turn. All of them are cast on the
+        tick the policy is queried, so the cost of a tick grows with this. Zero leaves the agent
+        with no range sensor at all.
+        """
+    @raycast_count.setter
+    def raycast_count(self, value: builtins.int) -> None:
+        r"""
+        How many rays the agent casts, spread evenly over a full turn. All of them are cast on the
+        tick the policy is queried, so the cost of a tick grows with this. Zero leaves the agent
+        with no range sensor at all.
+        """
+    @property
+    def raycast_max_distance(self) -> builtins.float:
+        r"""
+        How far each ray reaches. A ray that hits nothing within this distance reports the distance
+        itself, so a reading equal to it means "nothing found", not "a wall exactly here".
+        """
+    @raycast_max_distance.setter
+    def raycast_max_distance(self, value: builtins.float) -> None:
+        r"""
+        How far each ray reaches. A ray that hits nothing within this distance reports the distance
+        itself, so a reading equal to it means "nothing found", not "a wall exactly here".
+        """
+    @property
     def occupancy_grid_cell_size(self) -> builtins.float: ...
     @occupancy_grid_cell_size.setter
     def occupancy_grid_cell_size(self, value: builtins.float) -> None: ...
@@ -138,6 +164,26 @@ class FlagConfig:
     def capture_point_count(self) -> builtins.int: ...
     @capture_point_count.setter
     def capture_point_count(self, value: builtins.int) -> None: ...
+    @property
+    def flag_radius(self) -> builtins.float:
+        r"""
+        How close the agent must be to a dropped flag to pick it up.
+        """
+    @flag_radius.setter
+    def flag_radius(self, value: builtins.float) -> None:
+        r"""
+        How close the agent must be to a dropped flag to pick it up.
+        """
+    @property
+    def capture_point_radius(self) -> builtins.float:
+        r"""
+        How close a dropped flag must be to a capture point to be captured.
+        """
+    @capture_point_radius.setter
+    def capture_point_radius(self, value: builtins.float) -> None:
+        r"""
+        How close a dropped flag must be to a capture point to be captured.
+        """
 
 class GameResult:
     r"""
@@ -286,6 +332,18 @@ class HitInfo:
     def __str__(self) -> builtins.str: ...
 
 class MazeConfig:
+    r"""
+    Everything `parse_config` read out of a YAML file.
+    
+    Reading a nested config (`agent`, `flags`, `maze_generation`) gives back a copy, so setting a
+    field on it changes nothing. Assign the copy back to apply it:
+    
+    ```python
+    maze_generation = config.maze_generation
+    maze_generation.seed = 7
+    config.maze_generation = maze_generation
+    ```
+    """
     @property
     def agent(self) -> AgentConfig: ...
     @agent.setter

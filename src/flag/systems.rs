@@ -4,15 +4,13 @@ use rand::{SeedableRng, seq::SliceRandom};
 use rand_chacha::ChaCha20Rng;
 
 use crate::core::MazeConfig;
-use crate::flag::{CapturePoint, CapturePointBundle, FLAG_INTERACTION_RADIUS, Flag};
+use crate::flag::{CapturePoint, CapturePointBundle, Flag};
 use crate::occupancy_grid::{LOGIT_CLAMP, OccupancyGrid, TrueGrid};
 use crate::python::game_state::EntityType;
 use crate::scene::{WALL_THICKNESS, WallSegments};
 
 use super::components::FlagBundle;
 use super::visual::{CapturePointGraphicsAssets, FlagGraphicsAssets};
-
-const MIN_CLEARANCE_UNITS: f32 = FLAG_INTERACTION_RADIUS;
 
 fn idx_to_rc(i: usize, width: usize) -> (i32, i32) {
     let r = (i / width) as i32;
@@ -60,7 +58,7 @@ fn mark_neighborhood_units(
     }
 }
 
-/// Picks positions with 3.0-unit clearance from:
+/// Picks positions with `flags.spawn_clearance()` of clearance from:
 /// - walls
 /// - existing flags/capture points
 /// - newly selected same-type items (to avoid clumping)
@@ -76,16 +74,17 @@ fn pick_positions_for(
     let h = py_grid.rows as i32;
     let n = (w * h) as usize;
     let cell_size = config.agent.occupancy_grid_cell_size;
+    let clearance = config.flags.spawn_clearance();
 
     let mut blocked = vec![false; n];
 
     for (i, cell) in py_grid.grid.iter().enumerate() {
         match cell.assignment {
             Some(EntityType::Wall) => {
-                mark_neighborhood_units(&mut blocked, i, w, h, cell_size, MIN_CLEARANCE_UNITS);
+                mark_neighborhood_units(&mut blocked, i, w, h, cell_size, clearance);
             }
             Some(EntityType::Flag) | Some(EntityType::CapturePoint) => {
-                mark_neighborhood_units(&mut blocked, i, w, h, cell_size, MIN_CLEARANCE_UNITS);
+                mark_neighborhood_units(&mut blocked, i, w, h, cell_size, clearance);
             }
             _ => {}
         }
@@ -110,7 +109,7 @@ fn pick_positions_for(
             continue;
         }
         picked.push(idx);
-        mark_neighborhood_units(&mut blocked, idx, w, h, cell_size, MIN_CLEARANCE_UNITS);
+        mark_neighborhood_units(&mut blocked, idx, w, h, cell_size, clearance);
     }
 
     if picked.len() < count {
@@ -119,7 +118,7 @@ fn pick_positions_for(
             picked.len(),
             count,
             place_as,
-            MIN_CLEARANCE_UNITS
+            clearance
         );
     }
 
@@ -166,7 +165,11 @@ pub fn spawn_flags(
         let flag_name = format!("Flag {}", i + 1);
         info!("Spawning flag at position: ({x:.2}, {y:.2})");
 
-        let mut entity = commands.spawn(FlagBundle::new(&flag_name, Vec3::new(x, 0.5, y)));
+        let mut entity = commands.spawn(FlagBundle::new(
+            &flag_name,
+            Vec3::new(x, 0.5, y),
+            config.flags.flag_radius,
+        ));
 
         if let Some(flag_graphics) = &flag_graphics {
             entity.insert((
@@ -212,7 +215,11 @@ pub fn spawn_capture_points(
         let name = format!("Capture Point {}", i + 1);
         info!("Spawning capture point at position: ({x:.2}, {y:.2})");
 
-        let mut entity = commands.spawn(CapturePointBundle::new(&name, Vec3::new(x, 0.5, y)));
+        let mut entity = commands.spawn(CapturePointBundle::new(
+            &name,
+            Vec3::new(x, 0.5, y),
+            config.flags.capture_point_radius,
+        ));
 
         if let Some(capture_point_graphics) = &capture_point_graphics {
             entity.insert((

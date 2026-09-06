@@ -1,10 +1,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::flag::{
-    CAPTURE_POINT_INTERACTION_RADIUS, COLLISION_LAYER_CAPTURE_POINT, COLLISION_LAYER_FLAG,
-    FLAG_INTERACTION_RADIUS,
-};
+use crate::flag::{COLLISION_LAYER_CAPTURE_POINT, COLLISION_LAYER_FLAG};
 use crate::interaction_range::{InteractionRadius, VisibleRange};
 use crate::scene::COLLISION_LAYER_WALL;
 
@@ -34,13 +31,13 @@ pub struct FlagBundle {
 }
 
 impl FlagBundle {
-    pub fn new(name: &str, position: Vec3) -> Self {
+    pub fn new(name: &str, position: Vec3, radius: f32) -> Self {
         Self {
             name: Name::new(name.to_string()),
             flag: Flag {
                 status: FlagStatus::Dropped,
             },
-            interaction_radius: InteractionRadius(FLAG_INTERACTION_RADIUS),
+            interaction_radius: InteractionRadius(radius),
             transform: Transform::from_translation(position),
             visible_range: VisibleRange,
             rigid_body: RigidBody::Static,
@@ -70,11 +67,11 @@ pub struct CapturePointBundle {
 }
 
 impl CapturePointBundle {
-    pub fn new(name: &str, position: Vec3) -> Self {
+    pub fn new(name: &str, position: Vec3, radius: f32) -> Self {
         Self {
             name: Name::new(name.to_string()),
             capture_point: CapturePoint,
-            interaction_radius: InteractionRadius(CAPTURE_POINT_INTERACTION_RADIUS),
+            interaction_radius: InteractionRadius(radius),
             visible_range: VisibleRange,
             transform: Transform::from_translation(position),
             rigid_body: RigidBody::Static,

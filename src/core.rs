@@ -14,6 +14,16 @@ use crate::playback;
 use crate::scene;
 use crate::teleop;
 
+/// Everything `parse_config` read out of a YAML file.
+///
+/// Reading a nested config (`agent`, `flags`, `maze_generation`) gives back a copy, so setting a
+/// field on it changes nothing. Assign the copy back to apply it:
+///
+/// ```python
+/// maze_generation = config.maze_generation
+/// maze_generation.seed = 7
+/// config.maze_generation = maze_generation
+/// ```
 #[gen_stub_pyclass]
 #[pyclass(name = "MazeConfig")]
 #[derive(Debug, Clone, Resource, Reflect, Serialize, Deserialize, Derivative)]
@@ -64,6 +74,7 @@ impl MazeConfig {
     /// config rejects the values that would otherwise panic deep inside the engine.
     pub(crate) fn validate_settings(&self) -> Result<(), String> {
         self.agent.validate()?;
+        self.flags.validate()?;
         self.maze_generation.validate()?;
 
         let (columns, rows) = self.occupancy_grid_dimensions();
@@ -216,6 +227,10 @@ mod tests {
         let mut degenerate = MazeConfig::default();
         degenerate.agent.max_speed = 0.0;
         degenerate.agent.position_stddev = 0.0;
+        // A blind agent and flags that must be stood on exactly are degenerate the same way.
+        degenerate.agent.raycast_count = 0;
+        degenerate.flags.flag_radius = 0.0;
+        degenerate.flags.capture_point_radius = 0.0;
         assert!(degenerate.validate_settings().is_ok());
 
         let rejects = |break_it: fn(&mut MazeConfig)| {
@@ -248,6 +263,22 @@ mod tests {
         assert!(
             rejects(|c| c.maze_generation.cell_size = 1000.0),
             "maze cell larger than the world"
+        );
+        assert!(
+            rejects(|c| c.agent.raycast_count = 100_000),
+            "absurd ray count"
+        );
+        assert!(
+            rejects(|c| c.agent.raycast_max_distance = 0.0),
+            "zero ray reach"
+        );
+        assert!(
+            rejects(|c| c.flags.flag_radius = -1.0),
+            "negative flag radius"
+        );
+        assert!(
+            rejects(|c| c.flags.capture_point_radius = f32::NAN),
+            "non-finite capture point radius"
         );
     }
 

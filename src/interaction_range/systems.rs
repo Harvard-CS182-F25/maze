@@ -2,7 +2,8 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use crate::agent::Agent;
-use crate::flag::{CapturePoint, FLAG_INTERACTION_RADIUS, Flag, FlagCaptureCounts, FlagStatus};
+use crate::core::MazeConfig;
+use crate::flag::{CapturePoint, Flag, FlagCaptureCounts, FlagStatus};
 use crate::interaction_range::messages::{FlagDropMessage, FlagPickupMessage};
 
 use super::components::{InteractionRadius, InteractionRange, VisibleRange};
@@ -137,6 +138,7 @@ pub fn handle_flag_pickups(
 
 pub fn handle_flag_drop(
     mut commands: Commands,
+    config: Res<MazeConfig>,
     mut reader: MessageReader<FlagDropMessage>,
     agents: Query<(Entity, &Transform, Option<&Children>), With<Agent>>,
     mut flags: Query<(Entity, &mut Flag, &mut Transform), Without<Agent>>,
@@ -165,7 +167,7 @@ pub fn handle_flag_drop(
             commands.entity(flag_entity).insert((
                 RigidBody::Kinematic,
                 Collider::cylinder(0.5, 3.0),
-                InteractionRadius(FLAG_INTERACTION_RADIUS),
+                InteractionRadius(config.flags.flag_radius),
             ));
             flag.status = FlagStatus::Dropped;
             flag_transform.translation = agent_transform.translation

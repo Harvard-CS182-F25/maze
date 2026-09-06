@@ -13,8 +13,8 @@ pub use components::*;
 use crate::core::{MazeConfig, SIMULATION_HZ, StartupSets};
 
 pub const COLLISION_LAYER_AGENT: u32 = 1 << 1;
-pub const NUM_AGENT_RAYS: u32 = 16;
-pub const AGENT_RAYCAST_MAX_DISTANCE: f32 = 20.0;
+pub(crate) const NUM_AGENT_RAYS: u32 = 16;
+pub(crate) const AGENT_RAYCAST_MAX_DISTANCE: f32 = 20.0;
 
 #[gen_stub_pyclass]
 #[pyclass(name = "AgentConfig")]
@@ -49,6 +49,19 @@ pub struct AgentConfig {
     #[pyo3(get, set)]
     pub range_stddev: f32,
 
+    /// How many rays the agent casts, spread evenly over a full turn. All of them are cast on the
+    /// tick the policy is queried, so the cost of a tick grows with this. Zero leaves the agent
+    /// with no range sensor at all.
+    #[pyo3(get, set)]
+    #[derivative(Default(value = "NUM_AGENT_RAYS"))]
+    pub raycast_count: u32,
+
+    /// How far each ray reaches. A ray that hits nothing within this distance reports the distance
+    /// itself, so a reading equal to it means "nothing found", not "a wall exactly here".
+    #[pyo3(get, set)]
+    #[derivative(Default(value = "AGENT_RAYCAST_MAX_DISTANCE"))]
+    pub raycast_max_distance: f32,
+
     #[pyo3(get, set)]
     #[derivative(Default(value = "1.0"))]
     pub occupancy_grid_cell_size: f32,
@@ -65,6 +78,10 @@ impl AgentConfig {
     /// that nothing visibly happens, which is what `policy_hz = 0` is for instead.
     const MIN_POLICY_HZ: f32 = 1.0;
     const MAX_POLICY_HZ: f32 = SIMULATION_HZ;
+
+    /// Far past the point where more rays sample the grid any finer, and low enough that a stray
+    /// digit cannot make a tick take seconds.
+    const MAX_RAYCAST_COUNT: u32 = 512;
 
     /// The rate to query the policy at, or `None` when `policy_hz` turns the policy off.
     pub(crate) fn active_policy_hz(&self) -> Option<f32> {
@@ -94,6 +111,22 @@ impl AgentConfig {
             if !value.is_finite() || value < 0.0 {
                 return Err(format!("{name} must be zero or positive; got {value}"));
             }
+        }
+
+        if self.raycast_count > Self::MAX_RAYCAST_COUNT {
+            return Err(format!(
+                "agent.raycast_count must be at most {}; got {}",
+                Self::MAX_RAYCAST_COUNT,
+                self.raycast_count
+            ));
+        }
+
+        if !self.raycast_max_distance.is_finite() || self.raycast_max_distance <= 0.0 {
+            return Err(format!(
+                "agent.raycast_max_distance must be positive; got {}. Use agent.raycast_count 0 \
+                 for an agent with no range sensor.",
+                self.raycast_max_distance
+            ));
         }
 
         if !self.occupancy_grid_cell_size.is_finite() || self.occupancy_grid_cell_size <= 0.0 {

@@ -7,7 +7,6 @@ use rand_chacha::ChaCha20Rng;
 use rand_distr::Distribution;
 use rand_distr::Normal;
 
-use crate::agent::AGENT_RAYCAST_MAX_DISTANCE;
 use crate::core::MazeConfig;
 
 use crate::{
@@ -316,7 +315,7 @@ pub fn collect_agent_state(
             .map(|hit_info| HitInfo {
                 distance: {
                     let noise = range_noise_distribution.sample(rng);
-                    (hit_info.distance + noise).clamp(0.0, AGENT_RAYCAST_MAX_DISTANCE)
+                    (hit_info.distance + noise).clamp(0.0, hit_info.max_distance)
                 },
                 ..hit_info
             })
