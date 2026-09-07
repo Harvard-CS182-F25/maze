@@ -251,11 +251,21 @@ fn send_game_states(
     player_grid: Res<PlayerGrid>,
     true_grid: Res<TrueGrid>,
     bridge: Option<Res<Bridge>>,
-    spatial_query: SpatialQuery,
+    mut spatial_query: SpatialQuery,
+    mut pipeline_primed: Local<bool>,
     agent: Query<(&MaxLinearSpeed, &Transform, &RayCasters, Option<&Children>), With<Agent>>,
     kinds: Query<(Option<&Wall>, Option<&Flag>, Option<&CapturePoint>)>,
     flags: Query<&Flag>,
 ) {
+    // Physics runs in `FixedPostUpdate`, and with it the spatial-query pipeline the agent's rays
+    // are cast against. On the very first tick that pipeline is still empty, so every ray would
+    // report a clear line of sight all the way to its maximum range — which a mapping agent reads
+    // as confirmed free space, through walls. Build it once so the first observation is real.
+    if !*pipeline_primed {
+        *pipeline_primed = true;
+        spatial_query.update_pipeline();
+    }
+
     let fixed_dt = time.delta_secs();
     schedule.elapsed_since_dispatch += fixed_dt;
     schedule.until_next_query -= fixed_dt;

@@ -5,7 +5,9 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::gen_stub_pyclass_complex_enum;
 
 use crate::{
-    agent::{AGENT_RAYCAST_MAX_DISTANCE, COLLISION_LAYER_AGENT, NUM_AGENT_RAYS},
+    agent::{
+        AGENT_RAY_ORIGIN_Y, AGENT_RAYCAST_MAX_DISTANCE, COLLISION_LAYER_AGENT, NUM_AGENT_RAYS,
+    },
     character_controller::{CharacterControllerBundle, MaxLinearSpeed},
     flag::{COLLISION_LAYER_CAPTURE_POINT, COLLISION_LAYER_FLAG},
     scene::COLLISION_LAYER_WALL,
@@ -33,14 +35,15 @@ impl RayCasters {
             thetas
                 .map(|theta| {
                     let direction = Vec3::new(theta.cos(), 0.0, theta.sin());
-                    RayCaster::new(Vec3::ZERO.with_y(0.5), Dir3::new(direction).unwrap())
-                        .with_max_hits(1)
-                        .with_max_distance(max_distance)
-                        .with_query_filter(SpatialQueryFilter::from_mask(
-                            COLLISION_LAYER_WALL
-                                | COLLISION_LAYER_FLAG
-                                | COLLISION_LAYER_CAPTURE_POINT,
-                        ))
+                    RayCaster::new(
+                        Vec3::ZERO.with_y(AGENT_RAY_ORIGIN_Y),
+                        Dir3::new(direction).unwrap(),
+                    )
+                    .with_max_hits(1)
+                    .with_max_distance(max_distance)
+                    .with_query_filter(SpatialQueryFilter::from_mask(
+                        COLLISION_LAYER_WALL | COLLISION_LAYER_FLAG | COLLISION_LAYER_CAPTURE_POINT,
+                    ))
                 })
                 .collect::<Vec<_>>(),
         )

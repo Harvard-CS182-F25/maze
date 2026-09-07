@@ -11,9 +11,16 @@ use serde::{Deserialize, Serialize};
 pub use components::*;
 
 use crate::core::{MazeConfig, SIMULATION_HZ, StartupSets};
+use crate::scene::GROUND_SURFACE_Y;
 
 pub const COLLISION_LAYER_AGENT: u32 = 1 << 1;
+/// Where the agent's centre sits at rest. Its collider is a unit cube, so half of it is below the
+/// centre. Spawning any lower buries the raycast origin in the ground, and the first observation
+/// comes back as zero range in every direction.
+pub(crate) const AGENT_SPAWN_Y: f32 = GROUND_SURFACE_Y + 0.5;
 pub(crate) const NUM_AGENT_RAYS: u32 = 16;
+/// How far above the agent's centre its rays are cast from.
+pub(crate) const AGENT_RAY_ORIGIN_Y: f32 = 0.5;
 pub(crate) const AGENT_RAYCAST_MAX_DISTANCE: f32 = 20.0;
 
 #[gen_stub_pyclass]
@@ -181,7 +188,15 @@ fn spawn_agent_assets(mut commands: Commands, config: Res<MazeConfig>) {
 
 #[cfg(test)]
 mod tests {
-    use super::AgentConfig;
+    use super::{AGENT_RAY_ORIGIN_Y, AGENT_SPAWN_Y, AgentConfig};
+    use crate::scene::GROUND_SURFACE_Y;
+
+    #[test]
+    fn the_agent_casts_its_rays_from_above_the_ground() {
+        // A ray starting inside the ground plane reports zero range in every direction, and the
+        // policy is queried before physics has had a chance to lift the agent clear.
+        assert!(AGENT_SPAWN_Y + AGENT_RAY_ORIGIN_Y > GROUND_SURFACE_Y);
+    }
 
     #[test]
     fn policy_rate_accepts_zero_and_is_bounded_by_the_simulation_rate() {

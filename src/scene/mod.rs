@@ -15,6 +15,8 @@ pub use visual::*;
 use crate::core::{MazeConfig, StartupSets};
 
 pub const COLLISION_LAYER_WALL: u32 = 1 << 0;
+/// The y of the ground plane's top face, which is what everything in the world stands on.
+pub(crate) const GROUND_SURFACE_Y: f32 = 0.5;
 pub const WALL_HEIGHT: f32 = 5.0;
 pub const WALL_THICKNESS: f32 = 1.0;
 

@@ -12,9 +12,9 @@ use crate::{
     occupancy_grid::{LOGIT_CLAMP, PlayerGrid, TrueGrid},
     python::game_state::{EntityType, SensorRng},
     scene::{
-        COLLISION_LAYER_WALL, EstimatedPositionText, FlagProgressText, MappingMetricsText,
-        PolicyDurationText, TimeText, TruePositionText, WALL_HEIGHT, WALL_THICKNESS, WallBundle,
-        WallGraphicsAssets, WallSegments,
+        COLLISION_LAYER_WALL, EstimatedPositionText, FlagProgressText, GROUND_SURFACE_Y,
+        MappingMetricsText, PolicyDurationText, TimeText, TruePositionText, WALL_HEIGHT,
+        WALL_THICKNESS, WallBundle, WallGraphicsAssets, WallSegments,
     },
 };
 
@@ -35,9 +35,13 @@ pub fn setup_scene(
 
     let mut entity = commands.spawn((
         Name::new("Ground Plane"),
-        // The unit y scale puts the top face at y = 0.5, which is where the agent's raycasters
-        // originate and what the grounded shape cast's max distance is tuned against.
-        Transform::from_xyz(0.0, 0.0, 0.0).with_scale(Vec3::new(ground.x, 1.0, ground.y)),
+        // Centred on the origin, so the thickness is twice the surface height. Agents are spawned
+        // and ground-cast against that surface, so the two have to agree.
+        Transform::from_xyz(0.0, 0.0, 0.0).with_scale(Vec3::new(
+            ground.x,
+            GROUND_SURFACE_Y * 2.0,
+            ground.y,
+        )),
         RigidBody::Static,
         Collider::cuboid(1.0, 1.0, 1.0),
         CollisionLayers::new(

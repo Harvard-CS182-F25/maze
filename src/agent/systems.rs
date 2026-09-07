@@ -4,7 +4,7 @@ use rand::SeedableRng;
 use rand::seq::IndexedRandom;
 use rand_chacha::ChaCha20Rng;
 
-use crate::agent::GhostAgentBundle;
+use crate::agent::{AGENT_SPAWN_Y, GhostAgentBundle};
 use crate::core::MazeConfig;
 use crate::occupancy_grid::TrueGrid;
 use crate::python::game_state::EntityType;
@@ -55,7 +55,7 @@ pub fn spawn_agents(
     let entity = commands
         .spawn(AgentBundle::new(
             &config.agent.name,
-            Vec3::new(position.0, 0.0, position.1),
+            Vec3::new(position.0, AGENT_SPAWN_Y, position.1),
             config.agent.max_speed,
             config.agent.raycast_count,
             config.agent.raycast_max_distance,
