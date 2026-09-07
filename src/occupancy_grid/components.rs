@@ -21,7 +21,7 @@ pub struct HoverBox<T> {
 pub struct HoverBoxText;
 
 #[derive(Debug, Clone, Copy, PartialEq, Reflect)]
-pub struct OccupancyGridEntry {
+pub struct OccupancyGridCellData {
     pub assignment: Option<EntityType>,
     pub logit_free: f32,
     pub logit_wall: f32,
@@ -31,7 +31,7 @@ pub struct OccupancyGridEntry {
 
 pub const LOGIT_CLAMP: f32 = 6.0;
 
-impl Default for OccupancyGridEntry {
+impl Default for OccupancyGridCellData {
     fn default() -> Self {
         Self {
             assignment: None,
@@ -43,7 +43,7 @@ impl Default for OccupancyGridEntry {
     }
 }
 
-impl OccupancyGridEntry {
+impl OccupancyGridCellData {
     pub fn probabilities(&self) -> (f32, f32, f32, f32) {
         let exp_free = self.logit_free.exp();
         let exp_wall = self.logit_wall.exp();
@@ -61,29 +61,33 @@ impl OccupancyGridEntry {
     }
 }
 
-impl std::fmt::Display for OccupancyGridEntry {
+impl std::fmt::Display for OccupancyGridCellData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (p_free, p_wall, p_flag, p_capture_point) = self.probabilities();
 
         write!(
             f,
-            "OccupancyGridEntry(assignment: {:?}, p_free: {:.2}, p_wall: {:.2}, p_flag: {:.2}, p_capture_point: {:.2})",
+            "OccupancyGridCell(assignment: {:?}, p_free: {:.2}, p_wall: {:.2}, p_flag: {:.2}, p_capture_point: {:.2})",
             self.assignment, p_free, p_wall, p_flag, p_capture_point
         )
     }
 }
 
 #[gen_stub_pyclass]
-#[pyclass(name = "OccupancyGridEntry", str)]
+#[pyclass(name = "OccupancyGridCell", str)]
 /// Represents a mutable occupancy-grid cell.
-pub struct OccupancyCellView {
+pub struct OccupancyGridCellView {
     grid: Py<OccupancyGrid>,
     index: usize,
 }
 
 #[gen_stub_pymethods]
 #[pymethods]
-impl OccupancyCellView {
+impl OccupancyGridCellView {
+    fn __repr__(&self) -> String {
+        self.to_string()
+    }
+
     /// Mutable cell type assignment. Must be updated manually.
     #[getter]
     pub fn assignment(&self, py: Python) -> PyResult<Option<EntityType>> {
@@ -182,7 +186,7 @@ impl OccupancyCellView {
     }
 }
 
-impl std::fmt::Display for OccupancyCellView {
+impl std::fmt::Display for OccupancyGridCellView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Python::attach(|py| {
             let grid = self.grid.borrow(py);
@@ -198,7 +202,7 @@ impl std::fmt::Display for OccupancyCellView {
 #[pyclass(name = "OccupancyGridStorage")]
 #[derive(Debug, Clone, Default, Reflect)]
 pub struct OccupancyGrid {
-    pub grid: Vec<OccupancyGridEntry>,
+    pub grid: Vec<OccupancyGridCellData>,
     /// Returns the edge length of each cell.
     #[pyo3(get)]
     pub cell_size: f32,
@@ -217,7 +221,7 @@ impl OccupancyGrid {
     #[new]
     pub fn new(columns: usize, rows: usize, cell_size: f32) -> Self {
         Self {
-            grid: vec![OccupancyGridEntry::default(); columns * rows],
+            grid: vec![OccupancyGridCellData::default(); columns * rows],
             cell_size,
             columns,
             rows,
@@ -228,7 +232,7 @@ impl OccupancyGrid {
         slf: PyRef<Self>,
         py: Python,
         key: Py<PyAny>,
-    ) -> PyResult<OccupancyCellView> {
+    ) -> PyResult<OccupancyGridCellView> {
         let (x, y): (usize, usize) = key.extract(py)?;
 
         if x >= slf.columns || y >= slf.rows {
@@ -240,7 +244,7 @@ impl OccupancyGrid {
         let index = x + slf.columns * y;
         let grid = slf.into_pyobject(py)?.unbind();
 
-        Ok(OccupancyCellView { grid, index })
+        Ok(OccupancyGridCellView { grid, index })
     }
 
     #[getter]
@@ -324,7 +328,7 @@ pub struct OccupancyGridView {
 #[gen_stub_pymethods]
 #[pymethods]
 impl OccupancyGridView {
-    fn __getitem__(&self, key: Py<PyAny>) -> PyResult<OccupancyCellView> {
+    fn __getitem__(&self, key: Py<PyAny>) -> PyResult<OccupancyGridCellView> {
         Python::attach(|py| {
             let grid = self.inner.read().unwrap();
             let grid_ref = grid.borrow(py);

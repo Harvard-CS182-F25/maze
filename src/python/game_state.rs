@@ -51,7 +51,7 @@ pub struct AgentState {
 
     /// Returns a list of range-sensor readings.
     #[pyo3(get)]
-    pub raycasts: Vec<HitInfo>,
+    pub raycasts: Vec<Raycast>,
 
     /// Returns whether the agent is currently carrying a flag.
     #[pyo3(get)]
@@ -74,6 +74,14 @@ pub enum EntityType {
     Unknown,
 }
 
+#[gen_stub_pymethods]
+#[pymethods]
+impl EntityType {
+    fn __repr__(&self) -> String {
+        self.to_string()
+    }
+}
+
 impl std::fmt::Display for EntityType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
@@ -88,10 +96,10 @@ impl std::fmt::Display for EntityType {
 }
 
 #[gen_stub_pyclass]
-#[pyclass(name = "HitInfo", frozen, str)]
+#[pyclass(name = "Raycast", frozen, str)]
 #[derive(Clone, Debug, PartialEq)]
 /// Represents one range-sensor reading from the agent's current position.
-pub struct HitInfo {
+pub struct Raycast {
     /// Returns the ray angle in radians clockwise from +x.
     #[pyo3(get)]
     pub theta: f32,
@@ -115,7 +123,7 @@ pub struct HitInfo {
 
     /// Returns the per-class confidence for cells before the endpoint.
     #[pyo3(get)]
-    pub free_confidence: SensorConfidence,
+    pub path_confidence: SensorConfidence,
 }
 
 #[gen_stub_pyclass]
@@ -144,6 +152,13 @@ pub struct SensorConfidence {
 #[gen_stub_pymethods]
 #[pymethods]
 impl SensorConfidence {
+    fn __repr__(&self) -> String {
+        format!(
+            "SensorConfidence(free={}, wall={}, flag={}, capture_point={})",
+            self.conf_free, self.conf_wall, self.conf_flag, self.conf_capture_point
+        )
+    }
+
     #[new]
     pub fn new(conf_free: f32, conf_wall: f32, conf_flag: f32, conf_capture_point: f32) -> Self {
         Self {
@@ -176,11 +191,19 @@ impl From<[f32; 4]> for SensorConfidence {
     }
 }
 
-impl std::fmt::Display for HitInfo {
+#[gen_stub_pymethods]
+#[pymethods]
+impl Raycast {
+    fn __repr__(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl std::fmt::Display for Raycast {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "HitInfo(endpoint_type={:?}, distance={}, theta={})",
+            "Raycast(endpoint_type={:?}, distance={}, theta={})",
             self.endpoint_type, self.distance, self.theta
         )
     }
@@ -277,13 +300,13 @@ pub fn collect_agent_state(
                 .map(|hit| hit.distance)
                 .unwrap_or(raycaster.max_distance);
 
-            HitInfo {
+            Raycast {
                 theta: raycaster.direction.z.atan2(raycaster.direction.x),
                 endpoint_type: entity_type,
                 distance,
                 max_distance: raycaster.max_distance,
                 endpoint_confidence: confidence_by_entity_type(entity_type),
-                free_confidence: [0.9, 0.01, 0.045, 0.045].into(),
+                path_confidence: [0.9, 0.01, 0.045, 0.045].into(),
             }
         })
         .collect::<Vec<_>>();
@@ -312,7 +335,7 @@ pub fn collect_agent_state(
             .raycasts
             .clone()
             .into_iter()
-            .map(|hit_info| HitInfo {
+            .map(|hit_info| Raycast {
                 distance: {
                     let noise = range_noise_distribution.sample(rng);
                     (hit_info.distance + noise).clamp(0.0, hit_info.max_distance)

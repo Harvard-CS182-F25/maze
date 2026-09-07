@@ -140,7 +140,7 @@ class AgentState:
         Returns the standard deviation of position observations.
         """
     @property
-    def raycasts(self) -> builtins.list[HitInfo]:
+    def raycasts(self) -> builtins.list[Raycast]:
         r"""
         Returns a list of range-sensor readings.
         """
@@ -294,43 +294,6 @@ class GameState:
     @property
     def world_height(self) -> builtins.float: ...
 
-class HitInfo:
-    r"""
-    Represents one range-sensor reading from the agent's current position.
-    """
-    @property
-    def theta(self) -> builtins.float:
-        r"""
-        Returns the ray angle in radians clockwise from +x.
-        """
-    @property
-    def endpoint_type(self) -> EntityType:
-        r"""
-        Returns the type observed at the raycast endpoint. Equals `Free` if
-        no collision occurs before the endpoint.
-        """
-    @property
-    def distance(self) -> builtins.float:
-        r"""
-        Returns the reported distance, including range noise.
-        """
-    @property
-    def max_distance(self) -> builtins.float:
-        r"""
-        Returns the maximum distance the raycast can travel.
-        """
-    @property
-    def endpoint_confidence(self) -> SensorConfidence:
-        r"""
-        Returns the per-class confidence at the endpoint.
-        """
-    @property
-    def free_confidence(self) -> SensorConfidence:
-        r"""
-        Returns the per-class confidence for cells before the endpoint.
-        """
-    def __str__(self) -> builtins.str: ...
-
 class MazeConfig:
     r"""
     Everything `parse_config` read out of a YAML file.
@@ -412,7 +375,7 @@ class OccupancyGrid:
     def rows(self) -> builtins.int: ...
     @property
     def shape(self) -> tuple[builtins.int, builtins.int]: ...
-    def __getitem__(self, key:typing.Any) -> OccupancyGridEntry: ...
+    def __getitem__(self, key:typing.Any) -> OccupancyGridCell: ...
     def cell_at(self, x:builtins.float, y:builtins.float) -> typing.Optional[tuple[builtins.int, builtins.int]]:
         r"""
         Returns the `(column, row)` containing `(x, y)`, or `None` if outside grid.
@@ -422,7 +385,7 @@ class OccupancyGrid:
         Returns the center of cell `(column, row)`, or `None` if outside grid.
         """
 
-class OccupancyGridEntry:
+class OccupancyGridCell:
     r"""
     Represents a mutable occupancy-grid cell.
     """
@@ -462,10 +425,49 @@ class OccupancyGridEntry:
     @logit_capture_point.setter
     def logit_capture_point(self, value: builtins.float) -> None: ...
     def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
     def probabilities(self) -> tuple[builtins.float, builtins.float, builtins.float, builtins.float]:
         r"""
         Returns softmax probabilities `(free, wall, flag, capture_point)`.
         """
+
+class Raycast:
+    r"""
+    Represents one range-sensor reading from the agent's current position.
+    """
+    @property
+    def theta(self) -> builtins.float:
+        r"""
+        Returns the ray angle in radians clockwise from +x.
+        """
+    @property
+    def endpoint_type(self) -> EntityType:
+        r"""
+        Returns the type observed at the raycast endpoint. Equals `Free` if
+        no collision occurs before the endpoint.
+        """
+    @property
+    def distance(self) -> builtins.float:
+        r"""
+        Returns the reported distance, including range noise.
+        """
+    @property
+    def max_distance(self) -> builtins.float:
+        r"""
+        Returns the maximum distance the raycast can travel.
+        """
+    @property
+    def endpoint_confidence(self) -> SensorConfidence:
+        r"""
+        Returns the per-class confidence at the endpoint.
+        """
+    @property
+    def path_confidence(self) -> SensorConfidence:
+        r"""
+        Returns the per-class confidence for cells before the endpoint.
+        """
+    def __str__(self) -> builtins.str: ...
+    def __repr__(self) -> builtins.str: ...
 
 class SensorConfidence:
     r"""
@@ -492,6 +494,7 @@ class SensorConfidence:
         r"""
         Returns the confidence in a capture point.
         """
+    def __repr__(self) -> builtins.str: ...
     def __new__(cls, conf_free:builtins.float, conf_wall:builtins.float, conf_flag:builtins.float, conf_capture_point:builtins.float) -> SensorConfidence: ...
     def as_tuple(self) -> tuple[builtins.float, builtins.float, builtins.float, builtins.float]:
         r"""
@@ -523,6 +526,8 @@ class EntityType(Enum):
     Flag = ...
     CapturePoint = ...
     Unknown = ...
+
+    def __repr__(self) -> builtins.str: ...
 
 def parse_config(config_path:builtins.str) -> MazeConfig: ...
 

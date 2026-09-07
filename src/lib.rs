@@ -302,10 +302,10 @@ fn _core(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<agent::Action>()?;
     m.add_class::<python::game_state::GameState>()?;
     m.add_class::<python::game_state::AgentState>()?;
-    m.add_class::<python::game_state::HitInfo>()?;
+    m.add_class::<python::game_state::Raycast>()?;
     m.add_class::<python::game_state::EntityType>()?;
     m.add_class::<occupancy_grid::OccupancyGridView>()?;
-    m.add_class::<occupancy_grid::OccupancyCellView>()?;
+    m.add_class::<occupancy_grid::OccupancyGridCellView>()?;
     m.add_class::<python::game_state::SensorConfidence>()?;
     m.add_class::<python::metrics::GameResult>()?;
 
