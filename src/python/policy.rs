@@ -424,6 +424,11 @@ fn update_estimated_position_text(
     let Some((x, y)) = latest else {
         return;
     };
+    // A diverged filter reports a non-finite estimate, which would propagate into the ghost's
+    // global transform and out into the render graph.
+    if !x.is_finite() || !y.is_finite() {
+        return;
+    }
 
     text.0 = format!("Estimated Position: ({x:.2}, {y:.2})");
     ghost_transform.translation = Vec3::new(x, 0.0, y);

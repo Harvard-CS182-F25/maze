@@ -255,6 +255,12 @@ impl OccupancyGrid {
 
     /// Returns the `(column, row)` containing `(x, y)`, or `None` if outside grid.
     pub fn cell_at(&self, x: f32, y: f32) -> Option<(usize, usize)> {
+        // A NaN would pass both bounds checks below: it compares false against everything, and
+        // `NaN as usize` saturates to zero, so it would quietly name the corner cell.
+        if !x.is_finite() || !y.is_finite() {
+            return None;
+        }
+
         let (half_width, half_height) = self.half_extent();
         let column = ((x + half_width) / self.cell_size).floor();
         let row = ((y + half_height) / self.cell_size).floor();
@@ -394,6 +400,27 @@ impl OccupancyGridView {
 #[cfg(test)]
 mod tests {
     use super::OccupancyGrid;
+
+    #[test]
+    fn cells_outside_the_grid_and_non_finite_points_have_no_cell() {
+        let grid = OccupancyGrid::new(100, 60, 2.0);
+
+        // NaN is the interesting one: it compares false against every bound, and casting it to
+        // an integer saturates to zero, so an unguarded lookup names cell (0, 0).
+        for (x, y) in [
+            (f32::NAN, 0.0),
+            (0.0, f32::NAN),
+            (f32::NAN, f32::NAN),
+            (f32::INFINITY, 0.0),
+            (f32::NEG_INFINITY, 0.0),
+            (1e30, 0.0),
+            (-1e30, 0.0),
+        ] {
+            assert_eq!(grid.cell_at(x, y), None, "cell_at({x}, {y})");
+        }
+
+        assert!(grid.cell_at(0.0, 0.0).is_some());
+    }
 
     #[test]
     fn cells_and_world_points_round_trip() {

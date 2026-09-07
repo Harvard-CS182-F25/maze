@@ -28,12 +28,28 @@ pub fn update_grounded(
 pub fn movement(
     mut movement_event_reader: MessageReader<MovementMessage>,
     mut announced_overspeed: Local<bool>,
+    mut announced_non_finite: Local<bool>,
     mut controllers: Query<
         (Option<&MaxLinearSpeed>, &mut LinearVelocity, Has<Grounded>),
         With<CharacterController>,
     >,
 ) {
     for MovementMessage(velocity) in movement_event_reader.read() {
+        // A NaN survives the speed cap below, because every comparison against it is false. An
+        // infinity is caught by the cap, but scaling by `max_speed / inf` turns it into a NaN
+        // anyway. Either one reaches physics as a NaN position, and avian panics on the AABB it
+        // builds from that, so neither can be let through.
+        if !velocity.is_finite() {
+            if !*announced_non_finite {
+                *announced_non_finite = true;
+                warn!(
+                    "The agent asked to move at {velocity:?}, which is not a finite velocity. \
+                     Ignoring, and not reporting this again."
+                );
+            }
+            continue;
+        }
+
         for (max_speed, mut linear_velocity, is_grounded) in &mut controllers {
             if !is_grounded {
                 continue;
