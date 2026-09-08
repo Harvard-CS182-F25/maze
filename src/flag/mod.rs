@@ -94,12 +94,11 @@ impl Plugin for FlagPlugin {
         app.add_systems(
             FixedPostUpdate,
             // Flag and capture-point positions are read from their propagated global transforms.
-            // Headless runs skip this unless they need the true map: it takes the GIL every tick,
-            // and the only thing it changes is where a carried flag counts as being.
+            // This runs headless too: skipping it there froze the true map at its spawn state, so
+            // a headless score disagreed with what the same run showed in a window.
             systems::update_true_grid
                 .after(TransformSystems::Propagate)
-                .in_set(SimulationSets::TrueGrid)
-                .run_if(|config: Res<MazeConfig>| !config.headless || config.use_true_map),
+                .in_set(SimulationSets::TrueGrid),
         );
     }
 }

@@ -75,7 +75,11 @@ fn generate_app(
 
         // No window or GPU, but physics and flag parenting still need transforms and scene assets.
         app.add_plugins(
-            MinimalPlugins.set(ScheduleRunnerPlugin::run_loop(std::time::Duration::ZERO)),
+            MinimalPlugins
+                .set(ScheduleRunnerPlugin::run_loop(std::time::Duration::ZERO))
+                .set(bevy::app::TaskPoolPlugin {
+                    task_pool_options: bevy::app::TaskPoolOptions::with_num_threads(1),
+                }),
         );
         app.add_plugins(TransformPlugin);
         app.add_plugins(AssetPlugin::default());

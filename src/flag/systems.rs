@@ -6,7 +6,7 @@ use rand_chacha::ChaCha20Rng;
 use crate::core::MazeConfig;
 use crate::flag::{CapturePoint, CapturePointBundle, Flag};
 use crate::interaction_range::InteractionRadius;
-use crate::occupancy_grid::{LOGIT_CLAMP, OccupancyGrid, TrueGrid};
+use crate::occupancy_grid::{LOGIT_CLAMP, OccupancyGrid, OccupancyGridCellData, TrueGrid};
 use crate::python::game_state::EntityType;
 use crate::scene::{WALL_THICKNESS, WallSegments};
 
@@ -241,19 +241,27 @@ pub fn update_true_grid(
     query_flag: Query<&GlobalTransform, (With<Flag>, With<InteractionRadius>)>,
     query_cp: Query<&GlobalTransform, (With<CapturePoint>, With<InteractionRadius>)>,
 ) {
+    let footprint = |transform: &GlobalTransform| {
+        let position = transform.translation();
+        (
+            Vec2::new(position.x - 0.5, position.z - 0.5),
+            Vec2::new(position.x + 0.5, position.z + 0.5),
+        )
+    };
+    let flags: Vec<_> = query_flag.iter().map(footprint).collect();
+    let capture_points: Vec<_> = query_cp.iter().map(footprint).collect();
+
+    // One attach for the whole rebuild. Taking the GIL once per entity made this the most
+    // expensive part of a tick, which is why it used to be skipped in headless runs entirely.
     Python::attach(|py| {
         let grid = true_grid.0.write().unwrap();
         let mut py_obj = grid.borrow_mut(py);
         let columns = py_obj.columns as u32;
 
+        // Unconditional: a cell left alone because it already read `Wall` would keep a wall a
+        // policy wrote there, and with `use_true_map` the policy writes straight into this grid.
         for entry in &mut py_obj.grid {
-            if entry.assignment != Some(EntityType::Wall) {
-                entry.assignment = Some(EntityType::Free);
-                entry.logit_free = LOGIT_CLAMP;
-                entry.logit_wall = -LOGIT_CLAMP;
-                entry.logit_flag = -LOGIT_CLAMP;
-                entry.logit_capture_point = -LOGIT_CLAMP;
-            }
+            assign(entry, EntityType::Free);
         }
 
         for (p0, p1) in &segments.0 {
@@ -261,71 +269,40 @@ pub fn update_true_grid(
                 p0.x.min(p1.x) - WALL_THICKNESS * 0.5,
                 p0.y.min(p1.y) - WALL_THICKNESS * 0.5,
             );
-
             let aabb_top_right = Vec2::new(
                 p0.x.max(p1.x) + WALL_THICKNESS * 0.5,
                 p0.y.max(p1.y) + WALL_THICKNESS * 0.5,
             );
 
-            let wall_indexes = py_obj.overlapping_cells(aabb_bottom_left, aabb_top_right);
+            for (column, row) in py_obj.overlapping_cells(aabb_bottom_left, aabb_top_right) {
+                let index = (column + row * columns) as usize;
+                assign(&mut py_obj.grid[index], EntityType::Wall);
+            }
+        }
 
-            for (ix, iy) in wall_indexes.iter().copied() {
-                py_obj.grid[(ix + iy * columns) as usize].assignment = Some(EntityType::Wall);
-                py_obj.grid[(ix + iy * columns) as usize].logit_free = -LOGIT_CLAMP;
-                py_obj.grid[(ix + iy * columns) as usize].logit_wall = LOGIT_CLAMP;
-                py_obj.grid[(ix + iy * columns) as usize].logit_flag = -LOGIT_CLAMP;
-                py_obj.grid[(ix + iy * columns) as usize].logit_capture_point = -LOGIT_CLAMP;
+        // Capture points last, so one holding a flag reads as a capture point rather than a flag.
+        for (kind, footprints) in [
+            (EntityType::Flag, &flags),
+            (EntityType::CapturePoint, &capture_points),
+        ] {
+            for (aabb_min, aabb_max) in footprints {
+                for (column, row) in py_obj.overlapping_cells(*aabb_min, *aabb_max) {
+                    let index = (column + row * columns) as usize;
+                    assign(&mut py_obj.grid[index], kind);
+                }
             }
         }
     });
+}
 
-    for transform in &query_flag {
-        let aabb_min = Vec2::new(
-            transform.translation().x - 0.5,
-            transform.translation().z - 0.5,
-        );
-        let aabb_max = Vec2::new(
-            transform.translation().x + 0.5,
-            transform.translation().z + 0.5,
-        );
-        Python::attach(|py| {
-            let grid = true_grid.0.write().unwrap();
-            let mut py_obj = grid.borrow_mut(py);
-            let overlapping = py_obj.overlapping_cells(aabb_min, aabb_max);
-
-            for (col, row) in overlapping {
-                let idx = (row * (py_obj.columns as u32) + col) as usize;
-                py_obj.grid[idx].assignment = Some(EntityType::Flag);
-                py_obj.grid[idx].logit_free = -LOGIT_CLAMP;
-                py_obj.grid[idx].logit_wall = -LOGIT_CLAMP;
-                py_obj.grid[idx].logit_flag = LOGIT_CLAMP;
-                py_obj.grid[idx].logit_capture_point = -LOGIT_CLAMP;
-            }
-        });
-    }
-
-    for transform in &query_cp {
-        let aabb_min = Vec2::new(
-            transform.translation().x - 0.5,
-            transform.translation().z - 0.5,
-        );
-        let aabb_max = Vec2::new(
-            transform.translation().x + 0.5,
-            transform.translation().z + 0.5,
-        );
-        Python::attach(|py| {
-            let grid = true_grid.0.write().unwrap();
-            let mut py_obj = grid.borrow_mut(py);
-            let overlapping = py_obj.overlapping_cells(aabb_min, aabb_max);
-
-            for (col, row) in overlapping {
-                let idx = (row * (py_obj.columns as u32) + col) as usize;
-                py_obj.grid[idx].assignment = Some(EntityType::CapturePoint);
-                py_obj.grid[idx].logit_free = -LOGIT_CLAMP;
-                py_obj.grid[idx].logit_wall = -LOGIT_CLAMP;
-                py_obj.grid[idx].logit_flag = -LOGIT_CLAMP;
-                py_obj.grid[idx].logit_capture_point = LOGIT_CLAMP;
-            }
-        });
-    }
+fn assign(entry: &mut OccupancyGridCellData, kind: EntityType) {
+    entry.assignment = Some(kind);
+    entry.logit_free = if kind == EntityType::Free { LOGIT_CLAMP } else { -LOGIT_CLAMP };
+    entry.logit_wall = if kind == EntityType::Wall { LOGIT_CLAMP } else { -LOGIT_CLAMP };
+    entry.logit_flag = if kind == EntityType::Flag { LOGIT_CLAMP } else { -LOGIT_CLAMP };
+    entry.logit_capture_point = if kind == EntityType::CapturePoint {
+        LOGIT_CLAMP
+    } else {
+        -LOGIT_CLAMP
+    };
 }
