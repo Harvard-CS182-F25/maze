@@ -63,16 +63,24 @@ impl Plugin for OccupancyGridPlugin {
         app.add_systems(
             Update,
             (
-                systems::update_grid_texture::<PlayerGrid>,
+                // `update_hover_box` stays ungated: it is what hides the tooltip, so skipping it
+                // on the frame an overlay is toggled off would leave the tooltip on screen.
+                (
+                    systems::update_grid_texture::<PlayerGrid>,
+                    systems::cursor_to_grid_cell::<PlayerGrid>,
+                )
+                    .run_if(systems::grid_overlay_visible::<PlayerGrid>),
+                (
+                    systems::update_grid_texture::<TrueGrid>,
+                    systems::cursor_to_grid_cell::<TrueGrid>,
+                )
+                    .run_if(systems::grid_overlay_visible::<TrueGrid>),
+                systems::update_hover_box::<PlayerGrid>,
+                systems::update_hover_box::<TrueGrid>,
                 systems::toggle_grid::<PlayerGrid, TrueGrid>
                     .run_if(input_just_pressed(KeyCode::KeyC)),
-                systems::update_grid_texture::<TrueGrid>,
                 systems::toggle_grid::<TrueGrid, PlayerGrid>
                     .run_if(input_just_pressed(KeyCode::KeyT)),
-                systems::cursor_to_grid_cell::<PlayerGrid>,
-                systems::update_hover_box::<PlayerGrid>,
-                systems::cursor_to_grid_cell::<TrueGrid>,
-                systems::update_hover_box::<TrueGrid>,
             )
                 .run_if(|config: Res<MazeConfig>| !config.headless),
         );

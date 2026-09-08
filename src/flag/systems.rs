@@ -6,9 +6,9 @@ use rand_chacha::ChaCha20Rng;
 use crate::core::MazeConfig;
 use crate::flag::{CapturePoint, CapturePointBundle, Flag};
 use crate::interaction_range::InteractionRadius;
-use crate::occupancy_grid::{LOGIT_CLAMP, OccupancyGrid, OccupancyGridCellData, TrueGrid};
+use crate::occupancy_grid::{OccupancyGrid, OccupancyGridCellData, TrueGrid};
 use crate::python::game_state::EntityType;
-use crate::scene::{WALL_THICKNESS, WallSegments};
+use crate::scene::WallCells;
 
 use super::components::FlagBundle;
 use super::visual::{CapturePointGraphicsAssets, FlagGraphicsAssets};
@@ -79,8 +79,8 @@ fn pick_positions_for(
 
     let mut blocked = vec![false; n];
 
-    for (i, cell) in py_grid.grid.iter().enumerate() {
-        match cell.assignment {
+    for (i, assignment) in py_grid.assignments().iter().enumerate() {
+        match assignment {
             Some(EntityType::Wall) => {
                 mark_neighborhood_units(&mut blocked, i, w, h, cell_size, clearance);
             }
@@ -92,10 +92,10 @@ fn pick_positions_for(
     }
 
     let mut candidates: Vec<usize> = py_grid
-        .grid
+        .assignments()
         .iter()
         .enumerate()
-        .filter(|(i, cell)| cell.assignment == Some(EntityType::Free) && !blocked[*i])
+        .filter(|(i, assignment)| **assignment == Some(EntityType::Free) && !blocked[*i])
         .map(|(i, _)| i)
         .collect();
 
@@ -125,7 +125,7 @@ fn pick_positions_for(
 
     let mut out = Vec::with_capacity(picked.len());
     for &i in &picked {
-        py_grid.grid[i].assignment = Some(place_as);
+        py_grid.set_assignment(i, Some(place_as));
         let (column, row) = (i % py_grid.columns, i / py_grid.columns);
         out.extend(py_grid.world_center(column, row));
     }
@@ -234,7 +234,7 @@ pub fn spawn_capture_points(
 #[allow(clippy::type_complexity)]
 pub fn update_true_grid(
     true_grid: ResMut<TrueGrid>,
-    segments: Res<WallSegments>,
+    wall_cells: Res<WallCells>,
     // `InteractionRadius` is dropped the moment a flag or capture point stops being usable: a
     // carried or captured flag, and a capture point that has already taken its one flag. Those
     // must not appear in the map, or an agent will keep routing to a delivery that cannot happen.
@@ -256,28 +256,13 @@ pub fn update_true_grid(
     Python::attach(|py| {
         let grid = true_grid.0.write().unwrap();
         let mut py_obj = grid.borrow_mut(py);
-        let columns = py_obj.columns as u32;
+        let columns = py_obj.columns;
 
-        // Unconditional: a cell left alone because it already read `Wall` would keep a wall a
-        // policy wrote there, and with `use_true_map` the policy writes straight into this grid.
-        for entry in &mut py_obj.grid {
-            assign(entry, EntityType::Free);
-        }
-
-        for (p0, p1) in &segments.0 {
-            let aabb_bottom_left = Vec2::new(
-                p0.x.min(p1.x) - WALL_THICKNESS * 0.5,
-                p0.y.min(p1.y) - WALL_THICKNESS * 0.5,
-            );
-            let aabb_top_right = Vec2::new(
-                p0.x.max(p1.x) + WALL_THICKNESS * 0.5,
-                p0.y.max(p1.y) + WALL_THICKNESS * 0.5,
-            );
-
-            for (column, row) in py_obj.overlapping_cells(aabb_bottom_left, aabb_top_right) {
-                let index = (column + row * columns) as usize;
-                assign(&mut py_obj.grid[index], EntityType::Wall);
-            }
+        // Rebuilt rather than patched: `use_true_map` hands this very grid to the policy, so a
+        // class the policy wrote has to be overwritten rather than left standing.
+        py_obj.fill(OccupancyGridCellData::known(EntityType::Free));
+        for &index in &wall_cells.0 {
+            py_obj.set_cell(index, OccupancyGridCellData::known(EntityType::Wall));
         }
 
         // Capture points last, so one holding a flag reads as a capture point rather than a flag.
@@ -285,24 +270,12 @@ pub fn update_true_grid(
             (EntityType::Flag, &flags),
             (EntityType::CapturePoint, &capture_points),
         ] {
+            let cell = OccupancyGridCellData::known(kind);
             for (aabb_min, aabb_max) in footprints {
                 for (column, row) in py_obj.overlapping_cells(*aabb_min, *aabb_max) {
-                    let index = (column + row * columns) as usize;
-                    assign(&mut py_obj.grid[index], kind);
+                    py_obj.set_cell(column as usize + row as usize * columns, cell);
                 }
             }
         }
     });
-}
-
-fn assign(entry: &mut OccupancyGridCellData, kind: EntityType) {
-    entry.assignment = Some(kind);
-    entry.logit_free = if kind == EntityType::Free { LOGIT_CLAMP } else { -LOGIT_CLAMP };
-    entry.logit_wall = if kind == EntityType::Wall { LOGIT_CLAMP } else { -LOGIT_CLAMP };
-    entry.logit_flag = if kind == EntityType::Flag { LOGIT_CLAMP } else { -LOGIT_CLAMP };
-    entry.logit_capture_point = if kind == EntityType::CapturePoint {
-        LOGIT_CLAMP
-    } else {
-        -LOGIT_CLAMP
-    };
 }

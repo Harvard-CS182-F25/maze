@@ -93,6 +93,16 @@ pub fn spawn_grid_texture<T: PyGridProvider>(
     });
 }
 
+/// Whether the overlay for `T` is on screen. Both overlays start hidden and are toggled one at a
+/// time, so without this the re-encode below would run twice a frame for something nobody sees.
+pub fn grid_overlay_visible<T: PyGridProvider>(
+    plane: Query<&Visibility, With<GridPlane<T>>>,
+) -> bool {
+    plane
+        .iter()
+        .any(|visibility| *visibility != Visibility::Hidden)
+}
+
 pub fn update_grid_texture<T: PyGridProvider>(
     grid: Res<T>,
     mut vis: ResMut<GridVisualization<T>>,
@@ -154,7 +164,7 @@ fn encode_grid_to_rgba(grid: &OccupancyGrid) -> Vec<u8> {
     for y in 0..rows {
         for x in 0..columns {
             let idx = y * columns + x;
-            let entry = grid.grid[idx];
+            let entry = grid.cell(idx);
 
             let (r, g, b, a) = match entry.assignment {
                 Some(EntityType::Wall) => (0u8, 0u8, 0u8, 200u8),
@@ -330,18 +340,18 @@ pub fn update_hover_box<T: PyGridProvider>(
         let py_obj = grid.arc().read().unwrap().clone_ref(py);
         let grid_ref = py_obj.borrow(py);
         let idx = (cell.y * grid_ref.columns as u32 + cell.x) as usize;
-        if idx >= grid_ref.grid.len() {
+        if idx >= grid_ref.len() {
             // Keep the tooltip tuple shape stable if the grid changed under the cursor.
             return ((-1.0, -1.0, -1.0, -1.0), (-1.0, -1.0, -1.0, -1.0), None);
         }
-        let entry = &grid_ref.grid[idx];
+        let entry = grid_ref.cell(idx);
         let logits = (
-            entry.logit_free,
-            entry.logit_wall,
-            entry.logit_flag,
-            entry.logit_capture_point,
+            entry.logits.free,
+            entry.logits.wall,
+            entry.logits.flag,
+            entry.logits.capture_point,
         );
-        let probs = entry.probabilities();
+        let probs = entry.logits.probabilities();
         let assign = entry.assignment;
 
         (logits, probs, assign)

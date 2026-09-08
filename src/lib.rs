@@ -108,6 +108,7 @@ fn generate_app(
 
     app.insert_resource(Time::<Fixed>::from_hz(SIMULATION_HZ as f64));
     app.add_plugins((PhysicsPlugins::default(),));
+    run_schedules_single_threaded(&mut app);
 
     // The debug plugin pulls in egui and physics debug rendering, neither of which exists headless.
     if config.debug && !config.headless {
@@ -126,6 +127,43 @@ fn generate_app(
     ));
 
     app
+}
+
+/// Bevy's parallel executor hands each system to a worker thread and waits on a condition
+/// variable for it to finish. This simulation is a few dozen systems over a few hundred entities,
+/// so that handoff costs more than the systems do: profiling a headless run found nearly half the
+/// wall clock parked in `pthread_cond_wait` rather than doing work. Running the schedules inline
+/// removes the handoff. System order is unchanged, so results are identical either way.
+fn run_schedules_single_threaded(app: &mut App) {
+    use bevy::app::{
+        First, FixedFirst, FixedLast, FixedMain, FixedPostUpdate, FixedPreUpdate, FixedUpdate,
+        Last, Main, PostStartup, PostUpdate, PreStartup, PreUpdate, Startup, Update,
+    };
+    use bevy::ecs::schedule::{ExecutorKind, InternedScheduleLabel, ScheduleLabel};
+
+    let labels: [InternedScheduleLabel; 15] = [
+        Main.intern(),
+        First.intern(),
+        PreUpdate.intern(),
+        Update.intern(),
+        PostUpdate.intern(),
+        Last.intern(),
+        FixedMain.intern(),
+        FixedFirst.intern(),
+        FixedPreUpdate.intern(),
+        FixedUpdate.intern(),
+        FixedPostUpdate.intern(),
+        FixedLast.intern(),
+        PreStartup.intern(),
+        Startup.intern(),
+        PostStartup.intern(),
+    ];
+
+    for label in labels {
+        app.edit_schedule(label, |schedule| {
+            schedule.set_executor_kind(ExecutorKind::SingleThreaded);
+        });
+    }
 }
 
 #[gen_stub_pyfunction]

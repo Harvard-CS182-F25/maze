@@ -255,7 +255,13 @@ fn send_game_states(
     mut pipeline_primed: Local<bool>,
     agent: Query<(&MaxLinearSpeed, &Transform, &RayCasters, Option<&Children>), With<Agent>>,
     kinds: Query<(Option<&Wall>, Option<&Flag>, Option<&CapturePoint>)>,
-    spent: Query<Entity, (Or<(With<Flag>, With<CapturePoint>)>, Without<InteractionRadius>)>,
+    spent: Query<
+        Entity,
+        (
+            Or<(With<Flag>, With<CapturePoint>)>,
+            Without<InteractionRadius>,
+        ),
+    >,
     flags: Query<&Flag>,
 ) {
     // Physics runs in `FixedPostUpdate`, and with it the spatial-query pipeline the agent's rays
@@ -282,8 +288,14 @@ fn send_game_states(
         return;
     };
 
-    let (noisy_agent_state, true_agent_state) =
-        collect_agent_state(&config, &mut sensor_rng, &spatial_query, agent, &kinds, &spent);
+    let (noisy_agent_state, true_agent_state) = collect_agent_state(
+        &config,
+        &mut sensor_rng,
+        &spatial_query,
+        agent,
+        &kinds,
+        &spent,
+    );
 
     let noisy_state = GameState {
         agent: noisy_agent_state,

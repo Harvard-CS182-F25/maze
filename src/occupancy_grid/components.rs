@@ -20,35 +20,29 @@ pub struct HoverBox<T> {
 #[derive(Component)]
 pub struct HoverBoxText;
 
-#[derive(Debug, Clone, Copy, PartialEq, Reflect)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Reflect)]
 pub struct OccupancyGridCellData {
     pub assignment: Option<EntityType>,
-    pub logit_free: f32,
-    pub logit_wall: f32,
-    pub logit_flag: f32,
-    pub logit_capture_point: f32,
+    pub logits: CellLogits,
 }
 
 pub const LOGIT_CLAMP: f32 = 6.0;
 
-impl Default for OccupancyGridCellData {
-    fn default() -> Self {
-        Self {
-            assignment: None,
-            logit_free: 0.0,
-            logit_wall: 0.0,
-            logit_flag: 0.0,
-            logit_capture_point: 0.0,
-        }
-    }
+/// One cell's class log-odds, in the order the Python API names them.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Reflect)]
+pub struct CellLogits {
+    pub free: f32,
+    pub wall: f32,
+    pub flag: f32,
+    pub capture_point: f32,
 }
 
-impl OccupancyGridCellData {
+impl CellLogits {
     pub fn probabilities(&self) -> (f32, f32, f32, f32) {
-        let exp_free = self.logit_free.exp();
-        let exp_wall = self.logit_wall.exp();
-        let exp_flag = self.logit_flag.exp();
-        let exp_capture_point = self.logit_capture_point.exp();
+        let exp_free = self.free.exp();
+        let exp_wall = self.wall.exp();
+        let exp_flag = self.flag.exp();
+        let exp_capture_point = self.capture_point.exp();
 
         let sum = exp_free + exp_wall + exp_flag + exp_capture_point;
 
@@ -61,9 +55,25 @@ impl OccupancyGridCellData {
     }
 }
 
+impl OccupancyGridCellData {
+    /// A cell the engine knows the class of for certain, as the true map does.
+    pub fn known(kind: EntityType) -> Self {
+        let logit = |is_kind: bool| if is_kind { LOGIT_CLAMP } else { -LOGIT_CLAMP };
+        Self {
+            assignment: Some(kind),
+            logits: CellLogits {
+                free: logit(kind == EntityType::Free),
+                wall: logit(kind == EntityType::Wall),
+                flag: logit(kind == EntityType::Flag),
+                capture_point: logit(kind == EntityType::CapturePoint),
+            },
+        }
+    }
+}
+
 impl std::fmt::Display for OccupancyGridCellData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (p_free, p_wall, p_flag, p_capture_point) = self.probabilities();
+        let (p_free, p_wall, p_flag, p_capture_point) = self.logits.probabilities();
 
         write!(
             f,
@@ -92,16 +102,14 @@ impl OccupancyGridCellView {
     #[getter]
     pub fn assignment(&self, py: Python) -> PyResult<Option<EntityType>> {
         let grid = self.grid.borrow(py);
-        let entry = &grid.grid[self.index];
-        Ok(entry.assignment)
+        Ok(grid.assignment(self.index))
     }
 
     #[setter]
     pub fn set_assignment(&self, value: Option<EntityType>) -> PyResult<()> {
         Python::attach(|py| {
             let mut grid = self.grid.borrow_mut(py);
-            let entry = &mut grid.grid[self.index];
-            entry.assignment = value;
+            grid.set_assignment(self.index, value);
             Ok(())
         })
     }
@@ -110,16 +118,14 @@ impl OccupancyGridCellView {
     #[getter]
     pub fn logit_free(&self, py: Python) -> PyResult<f32> {
         let grid = self.grid.borrow(py);
-        let entry = &grid.grid[self.index];
-        Ok(entry.logit_free)
+        Ok(grid.logits(self.index).free)
     }
 
     #[setter]
     pub fn set_logit_free(&self, value: f32) -> PyResult<()> {
         Python::attach(|py| {
             let mut grid = self.grid.borrow_mut(py);
-            let entry = &mut grid.grid[self.index];
-            entry.logit_free = value.clamp(-LOGIT_CLAMP, LOGIT_CLAMP);
+            grid.logits_mut(self.index).free = value.clamp(-LOGIT_CLAMP, LOGIT_CLAMP);
             Ok(())
         })
     }
@@ -128,16 +134,14 @@ impl OccupancyGridCellView {
     #[getter]
     pub fn logit_wall(&self, py: Python) -> PyResult<f32> {
         let grid = self.grid.borrow(py);
-        let entry = &grid.grid[self.index];
-        Ok(entry.logit_wall)
+        Ok(grid.logits(self.index).wall)
     }
 
     #[setter]
     pub fn set_logit_wall(&self, value: f32) -> PyResult<()> {
         Python::attach(|py| {
             let mut grid = self.grid.borrow_mut(py);
-            let entry = &mut grid.grid[self.index];
-            entry.logit_wall = value.clamp(-LOGIT_CLAMP, LOGIT_CLAMP);
+            grid.logits_mut(self.index).wall = value.clamp(-LOGIT_CLAMP, LOGIT_CLAMP);
             Ok(())
         })
     }
@@ -146,16 +150,14 @@ impl OccupancyGridCellView {
     #[getter]
     pub fn logit_flag(&self, py: Python) -> PyResult<f32> {
         let grid = self.grid.borrow(py);
-        let entry = &grid.grid[self.index];
-        Ok(entry.logit_flag)
+        Ok(grid.logits(self.index).flag)
     }
 
     #[setter]
     pub fn set_logit_flag(&self, value: f32) -> PyResult<()> {
         Python::attach(|py| {
             let mut grid = self.grid.borrow_mut(py);
-            let entry = &mut grid.grid[self.index];
-            entry.logit_flag = value.clamp(-LOGIT_CLAMP, LOGIT_CLAMP);
+            grid.logits_mut(self.index).flag = value.clamp(-LOGIT_CLAMP, LOGIT_CLAMP);
             Ok(())
         })
     }
@@ -164,16 +166,14 @@ impl OccupancyGridCellView {
     #[getter]
     pub fn logit_capture_point(&self, py: Python) -> PyResult<f32> {
         let grid = self.grid.borrow(py);
-        let entry = &grid.grid[self.index];
-        Ok(entry.logit_capture_point)
+        Ok(grid.logits(self.index).capture_point)
     }
 
     #[setter]
     pub fn set_logit_capture_point(&self, value: f32) -> PyResult<()> {
         Python::attach(|py| {
             let mut grid = self.grid.borrow_mut(py);
-            let entry = &mut grid.grid[self.index];
-            entry.logit_capture_point = value.clamp(-LOGIT_CLAMP, LOGIT_CLAMP);
+            grid.logits_mut(self.index).capture_point = value.clamp(-LOGIT_CLAMP, LOGIT_CLAMP);
             Ok(())
         })
     }
@@ -181,8 +181,7 @@ impl OccupancyGridCellView {
     /// Returns softmax probabilities `(free, wall, flag, capture_point)`.
     pub fn probabilities(&self, py: Python) -> PyResult<(f32, f32, f32, f32)> {
         let grid = self.grid.borrow(py);
-        let entry = &grid.grid[self.index];
-        Ok(entry.probabilities())
+        Ok(grid.logits(self.index).probabilities())
     }
 }
 
@@ -190,8 +189,7 @@ impl std::fmt::Display for OccupancyGridCellView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Python::attach(|py| {
             let grid = self.grid.borrow(py);
-            let entry = &grid.grid[self.index];
-            write!(f, "{}", entry)
+            write!(f, "{}", grid.cell(self.index))
         })
     }
 }
@@ -202,7 +200,12 @@ impl std::fmt::Display for OccupancyGridCellView {
 #[pyclass(name = "OccupancyGridStorage")]
 #[derive(Debug, Clone, Default, Reflect)]
 pub struct OccupancyGrid {
-    pub grid: Vec<OccupancyGridCellData>,
+    /// Held apart from the logits because scoring a run compares nothing else: every tick walks
+    /// both grids' assignments, and one byte per cell keeps that scan in cache where a 20-byte
+    /// record per cell did not.
+    assignments: Vec<Option<EntityType>>,
+    logits: Vec<CellLogits>,
+
     /// Returns the edge length of each cell.
     #[pyo3(get)]
     pub cell_size: f32,
@@ -220,8 +223,10 @@ pub struct OccupancyGrid {
 impl OccupancyGrid {
     #[new]
     pub fn new(columns: usize, rows: usize, cell_size: f32) -> Self {
+        let default = OccupancyGridCellData::default();
         Self {
-            grid: vec![OccupancyGridCellData::default(); columns * rows],
+            assignments: vec![default.assignment; columns * rows],
+            logits: vec![default.logits; columns * rows],
             cell_size,
             columns,
             rows,
@@ -287,6 +292,53 @@ impl OccupancyGrid {
 }
 
 impl OccupancyGrid {
+    /// Every cell's class, in row-major order. The scoring pass reads only this.
+    pub fn assignments(&self) -> &[Option<EntityType>] {
+        &self.assignments
+    }
+
+    pub fn len(&self) -> usize {
+        self.assignments.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.assignments.is_empty()
+    }
+
+    pub fn assignment(&self, index: usize) -> Option<EntityType> {
+        self.assignments[index]
+    }
+
+    pub fn set_assignment(&mut self, index: usize, assignment: Option<EntityType>) {
+        self.assignments[index] = assignment;
+    }
+
+    pub fn logits(&self, index: usize) -> &CellLogits {
+        &self.logits[index]
+    }
+
+    pub fn logits_mut(&mut self, index: usize) -> &mut CellLogits {
+        &mut self.logits[index]
+    }
+
+    pub fn cell(&self, index: usize) -> OccupancyGridCellData {
+        OccupancyGridCellData {
+            assignment: self.assignments[index],
+            logits: self.logits[index],
+        }
+    }
+
+    pub fn set_cell(&mut self, index: usize, cell: OccupancyGridCellData) {
+        self.assignments[index] = cell.assignment;
+        self.logits[index] = cell.logits;
+    }
+
+    /// Overwrites every cell with `cell`.
+    pub fn fill(&mut self, cell: OccupancyGridCellData) {
+        self.assignments.fill(cell.assignment);
+        self.logits.fill(cell.logits);
+    }
+
     /// Returns the cells overlapped by a world-space XZ AABB, clamped to the grid.
     pub fn overlapping_cells(&self, aabb_min: Vec2, aabb_max: Vec2) -> Vec<(u32, u32)> {
         let (half_width, half_height) = self.half_extent();

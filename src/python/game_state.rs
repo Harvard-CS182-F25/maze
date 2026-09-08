@@ -268,7 +268,13 @@ pub fn collect_agent_state(
     spatial_query: &SpatialQuery,
     agent: Query<(&MaxLinearSpeed, &Transform, &RayCasters, Option<&Children>), With<Agent>>,
     kinds: &Query<(Option<&Wall>, Option<&Flag>, Option<&CapturePoint>)>,
-    spent: &Query<Entity, (Or<(With<Flag>, With<CapturePoint>)>, Without<InteractionRadius>)>,
+    spent: &Query<
+        Entity,
+        (
+            Or<(With<Flag>, With<CapturePoint>)>,
+            Without<InteractionRadius>,
+        ),
+    >,
 ) -> (AgentState, AgentState) {
     let (max_speed, agent_transform, raycasters, children) =
         agent.single().expect("There should be exactly one agent");
@@ -350,16 +356,8 @@ pub fn collect_agent_state(
                     // the rays happen to hit.
                     let noise = range_noise_distribution.sample(rng);
                     if hit_info.endpoint_type == EntityType::Free {
-                        // The ray reached its limit and measured nothing. Perturbing that can
-                        // only shorten it, since the clamp is one-sided at `max_distance`, which
-                        // under-reports the free space the ray passed through.
                         hit_info.distance
                     } else {
-                        // Flooring at zero lets noise place a hit inside the agent itself, which
-                        // the mapper reads as an obstacle in the cell it is standing in — the ray
-                        // stops reporting free space and reports the opposite. Nothing the agent
-                        // collides with can be nearer than its own shell. A flag dropped at its
-                        // feet really is at zero range, hence the `min`.
                         let floor = AGENT_HALF_EXTENT.min(hit_info.distance);
                         (hit_info.distance + noise).clamp(floor, hit_info.max_distance)
                     }

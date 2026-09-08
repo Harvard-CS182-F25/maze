@@ -10,8 +10,10 @@ use crate::{
 #[reflect(Component)]
 pub struct Wall;
 
+/// Occupancy-grid indices covered by the maze walls. Walls never move, so resolving the segments
+/// to cells once keeps the per-tick rebuild of the true map off the segment list.
 #[derive(Debug, Clone, Default, Resource)]
-pub struct WallSegments(pub Vec<(Vec2, Vec2)>);
+pub struct WallCells(pub Vec<usize>);
 
 #[derive(Debug, Clone, Copy, Default, Component, Reflect)]
 #[reflect(Component)]

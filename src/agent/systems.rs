@@ -23,11 +23,11 @@ pub fn spawn_agents(
         let py_obj = grid.borrow(py);
 
         let free_positions: Vec<(f32, f32)> = py_obj
-            .grid
+            .assignments()
             .iter()
             .enumerate()
-            .filter_map(|(i, cell)| {
-                if cell.assignment != Some(EntityType::Free) {
+            .filter_map(|(i, assignment)| {
+                if *assignment != Some(EntityType::Free) {
                     return None;
                 }
                 py_obj.world_center(i % py_obj.columns, i / py_obj.columns)

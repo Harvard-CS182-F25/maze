@@ -9,12 +9,12 @@ use crate::{
     agent::{Agent, COLLISION_LAYER_AGENT},
     core::MazeConfig,
     flag::{Flag, FlagCaptureCounts},
-    occupancy_grid::{LOGIT_CLAMP, PlayerGrid, TrueGrid},
+    occupancy_grid::{OccupancyGridCellData, PlayerGrid, TrueGrid},
     python::game_state::{EntityType, SensorRng},
     scene::{
         COLLISION_LAYER_WALL, EstimatedPositionText, FlagProgressText, GROUND_SURFACE_Y,
         MappingMetricsText, PolicyDurationText, TimeText, TruePositionText, WALL_HEIGHT,
-        WALL_THICKNESS, WallBundle, WallGraphicsAssets, WallSegments,
+        WALL_THICKNESS, WallBundle, WallCells, WallGraphicsAssets,
     },
 };
 
@@ -411,10 +411,10 @@ pub fn mapping_metrics(player_grid: &PlayerGrid, true_grid: &TrueGrid) -> Mappin
         let true_grid = true_grid.borrow(py);
         mapping_metrics_from_assignments(
             player_grid
-                .grid
+                .assignments()
                 .iter()
-                .zip(true_grid.grid.iter())
-                .map(|(prediction, truth)| (prediction.assignment, truth.assignment)),
+                .zip(true_grid.assignments().iter())
+                .map(|(prediction, truth)| (*prediction, *truth)),
         )
     })
 }
@@ -452,6 +452,22 @@ pub fn update_true_position(
     }
 }
 
+/// The ground a wall between `p0` and `p1` covers, as a min/max corner pair. Padded by half the
+/// wall's thickness on both axes so the cells under its faces count as wall.
+fn wall_footprint(p0: Vec2, p1: Vec2) -> (Vec2, Vec2) {
+    let half_thickness = WALL_THICKNESS * 0.5;
+    (
+        Vec2::new(
+            p0.x.min(p1.x) - half_thickness,
+            p0.y.min(p1.y) - half_thickness,
+        ),
+        Vec2::new(
+            p0.x.max(p1.x) + half_thickness,
+            p0.y.max(p1.y) + half_thickness,
+        ),
+    )
+}
+
 pub fn spawn_walls(
     mut commands: Commands,
     mut meshes: Option<ResMut<Assets<Mesh>>>,
@@ -476,48 +492,36 @@ pub fn spawn_walls(
 
     let segments = segments_from_maze(&maze, &config, WALL_THICKNESS * 0.5);
 
-    Python::attach(|py| {
+    let wall_cells = Python::attach(|py| {
         let grid = true_grid.0.write().unwrap();
         let mut py_obj = grid.borrow_mut(py);
-        let columns = py_obj.columns as u32;
-        let rows = py_obj.rows as u32;
-        for index in 0..(columns * rows) {
-            py_obj.grid[index as usize].assignment = Some(EntityType::Free);
-            py_obj.grid[index as usize].logit_free = LOGIT_CLAMP;
-            py_obj.grid[index as usize].logit_wall = -LOGIT_CLAMP;
-            py_obj.grid[index as usize].logit_flag = -LOGIT_CLAMP;
-            py_obj.grid[index as usize].logit_capture_point = -LOGIT_CLAMP;
+        let columns = py_obj.columns;
+
+        let mut cells: Vec<usize> = segments
+            .iter()
+            .flat_map(|&(p0, p1)| {
+                let (aabb_min, aabb_max) = wall_footprint(p0, p1);
+                py_obj
+                    .overlapping_cells(aabb_min, aabb_max)
+                    .into_iter()
+                    .map(|(column, row)| column as usize + row as usize * columns)
+            })
+            .collect();
+        // Neighbouring segments overlap where they meet, and the truth rebuild writes each cell
+        // it is handed, so the duplicates would be pure repeated work every tick.
+        cells.sort_unstable();
+        cells.dedup();
+
+        py_obj.fill(OccupancyGridCellData::known(EntityType::Free));
+        for &index in &cells {
+            py_obj.set_cell(index, OccupancyGridCellData::known(EntityType::Wall));
         }
+        cells
     });
 
-    commands.insert_resource(WallSegments(segments.clone()));
+    commands.insert_resource(WallCells(wall_cells));
     for (p0, p1) in segments {
         let mut entity = commands.spawn(WallBundle::new(p0, p1, WALL_THICKNESS));
-
-        let aabb_bottom_left = Vec2::new(
-            p0.x.min(p1.x) - WALL_THICKNESS * 0.5,
-            p0.y.min(p1.y) - WALL_THICKNESS * 0.5,
-        );
-
-        let aabb_top_right = Vec2::new(
-            p0.x.max(p1.x) + WALL_THICKNESS * 0.5,
-            p0.y.max(p1.y) + WALL_THICKNESS * 0.5,
-        );
-
-        Python::attach(|py| {
-            let grid = true_grid.0.write().unwrap();
-            let mut py_obj = grid.borrow_mut(py);
-            let columns = py_obj.columns as u32;
-            let wall_indexes = py_obj.overlapping_cells(aabb_bottom_left, aabb_top_right);
-
-            for (ix, iy) in wall_indexes.iter().copied() {
-                py_obj.grid[(ix + iy * columns) as usize].assignment = Some(EntityType::Wall);
-                py_obj.grid[(ix + iy * columns) as usize].logit_free = -LOGIT_CLAMP;
-                py_obj.grid[(ix + iy * columns) as usize].logit_wall = LOGIT_CLAMP;
-                py_obj.grid[(ix + iy * columns) as usize].logit_flag = -LOGIT_CLAMP;
-                py_obj.grid[(ix + iy * columns) as usize].logit_capture_point = -LOGIT_CLAMP;
-            }
-        });
 
         if let (Some(meshes), Some(graphics)) = (&mut meshes, &graphics) {
             let len = p0.distance(p1);
