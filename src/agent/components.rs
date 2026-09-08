@@ -6,7 +6,8 @@ use pyo3_stub_gen::derive::gen_stub_pyclass_complex_enum;
 
 use crate::{
     agent::{
-        AGENT_RAY_ORIGIN_Y, AGENT_RAYCAST_MAX_DISTANCE, COLLISION_LAYER_AGENT, NUM_AGENT_RAYS,
+        AGENT_HALF_EXTENT, AGENT_RAY_ORIGIN_Y, AGENT_RAYCAST_MAX_DISTANCE, COLLISION_LAYER_AGENT,
+        NUM_AGENT_RAYS,
     },
     character_controller::{CharacterControllerBundle, MaxLinearSpeed},
     flag::{COLLISION_LAYER_CAPTURE_POINT, COLLISION_LAYER_FLAG},
@@ -123,7 +124,11 @@ impl Default for AgentBundle {
             max_speed: MaxLinearSpeed::default(),
             friction: Friction::ZERO.with_combine_rule(CoefficientCombine::Min),
             restitution: Restitution::ZERO.with_combine_rule(CoefficientCombine::Min),
-            character_controller: CharacterControllerBundle::new(Collider::cuboid(1.0, 1.0, 1.0)),
+            character_controller: CharacterControllerBundle::new(Collider::cuboid(
+                AGENT_HALF_EXTENT * 2.0,
+                AGENT_HALF_EXTENT * 2.0,
+                AGENT_HALF_EXTENT * 2.0,
+            )),
             collision_layer,
             raycasters: RayCasters::new(NUM_AGENT_RAYS, AGENT_RAYCAST_MAX_DISTANCE),
         }

@@ -10,7 +10,7 @@ use rand_distr::Normal;
 use crate::core::MazeConfig;
 
 use crate::{
-    agent::{Agent, RayCasters},
+    agent::{AGENT_HALF_EXTENT, Agent, RayCasters},
     character_controller::MaxLinearSpeed,
     flag::{CapturePoint, Flag},
     interaction_range::InteractionRadius,
@@ -347,7 +347,13 @@ pub fn collect_agent_state(
             .map(|hit_info| Raycast {
                 distance: {
                     let noise = range_noise_distribution.sample(rng);
-                    (hit_info.distance + noise).clamp(0.0, hit_info.max_distance)
+                    // Flooring at zero lets noise place a hit inside the agent itself, which the
+                    // mapper reads as an obstacle in the cell it is standing in — the ray stops
+                    // reporting free space and reports the opposite. Nothing the agent collides
+                    // with can be nearer than its own shell, so floor there instead. A flag
+                    // dropped at its feet really is at zero range, hence the `min`.
+                    let floor = AGENT_HALF_EXTENT.min(hit_info.distance);
+                    (hit_info.distance + noise).clamp(floor, hit_info.max_distance)
                 },
                 ..hit_info
             })

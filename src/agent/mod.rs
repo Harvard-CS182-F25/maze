@@ -21,6 +21,9 @@ pub(crate) const AGENT_SPAWN_Y: f32 = GROUND_SURFACE_Y + 0.5;
 pub(crate) const NUM_AGENT_RAYS: u32 = 16;
 /// How far above the agent's centre its rays are cast from.
 pub(crate) const AGENT_RAY_ORIGIN_Y: f32 = 0.5;
+/// Half the width of the agent's collider. Rays start at its centre, so no solid the agent
+/// collides with can ever be nearer than this.
+pub(crate) const AGENT_HALF_EXTENT: f32 = 0.5;
 pub(crate) const AGENT_RAYCAST_MAX_DISTANCE: f32 = 20.0;
 
 #[gen_stub_pyclass]
