@@ -42,86 +42,22 @@ class Action:
 class AgentConfig:
     @property
     def name(self) -> builtins.str: ...
-    @name.setter
-    def name(self, value: builtins.str) -> None: ...
     @property
     def max_speed(self) -> builtins.float: ...
-    @max_speed.setter
-    def max_speed(self, value: builtins.float) -> None: ...
     @property
-    def policy_hz(self) -> builtins.float:
-        r"""
-        How often `get_action` is called, in Hz. Zero disables the policy entirely, which is only
-        useful for a keyboard-only teleop demonstration.
-        
-        The policy runs on simulation ticks, which are fixed at 60 Hz, so a rate that does not
-        divide 60 cannot be hit exactly: it is correct on average, but the `dt` handed to
-        `get_action` alternates between neighbouring tick counts. At 7 Hz, for instance, `dt`
-        alternates between 0.133 and 0.150 rather than sitting at 1/7. A rate that divides 60
-        gives a constant `dt`.
-        """
-    @policy_hz.setter
-    def policy_hz(self, value: builtins.float) -> None:
-        r"""
-        How often `get_action` is called, in Hz. Zero disables the policy entirely, which is only
-        useful for a keyboard-only teleop demonstration.
-        
-        The policy runs on simulation ticks, which are fixed at 60 Hz, so a rate that does not
-        divide 60 cannot be hit exactly: it is correct on average, but the `dt` handed to
-        `get_action` alternates between neighbouring tick counts. At 7 Hz, for instance, `dt`
-        alternates between 0.133 and 0.150 rather than sitting at 1/7. A rate that divides 60
-        gives a constant `dt`.
-        """
+    def policy_hz(self) -> builtins.float: ...
     @property
     def position_stddev(self) -> builtins.float: ...
-    @position_stddev.setter
-    def position_stddev(self, value: builtins.float) -> None: ...
     @property
     def range_stddev(self) -> builtins.float: ...
-    @range_stddev.setter
-    def range_stddev(self, value: builtins.float) -> None: ...
     @property
-    def raycast_count(self) -> builtins.int:
-        r"""
-        How many rays the agent casts, spread evenly over a full turn. All of them are cast on the
-        tick the policy is queried, so the cost of a tick grows with this. Zero leaves the agent
-        with no range sensor at all.
-        """
-    @raycast_count.setter
-    def raycast_count(self, value: builtins.int) -> None:
-        r"""
-        How many rays the agent casts, spread evenly over a full turn. All of them are cast on the
-        tick the policy is queried, so the cost of a tick grows with this. Zero leaves the agent
-        with no range sensor at all.
-        """
+    def raycast_count(self) -> builtins.int: ...
     @property
-    def raycast_max_distance(self) -> builtins.float:
-        r"""
-        How far each ray reaches. A ray that hits nothing within this distance reports the distance
-        itself, so a reading equal to it means "nothing found", not "a wall exactly here".
-        """
-    @raycast_max_distance.setter
-    def raycast_max_distance(self, value: builtins.float) -> None:
-        r"""
-        How far each ray reaches. A ray that hits nothing within this distance reports the distance
-        itself, so a reading equal to it means "nothing found", not "a wall exactly here".
-        """
+    def raycast_max_distance(self) -> builtins.float: ...
     @property
     def occupancy_grid_cell_size(self) -> builtins.float: ...
-    @occupancy_grid_cell_size.setter
-    def occupancy_grid_cell_size(self, value: builtins.float) -> None: ...
     @property
-    def policy_timeout_seconds(self) -> builtins.float:
-        r"""
-        How long the simulation waits for one `get_action` call before giving up on the policy, in
-        seconds. Zero waits forever, which is what a debugger session needs.
-        """
-    @policy_timeout_seconds.setter
-    def policy_timeout_seconds(self, value: builtins.float) -> None:
-        r"""
-        How long the simulation waits for one `get_action` call before giving up on the policy, in
-        seconds. Zero waits forever, which is what a debugger session needs.
-        """
+    def policy_timeout_seconds(self) -> builtins.float: ...
 
 class AgentState:
     r"""
@@ -161,32 +97,12 @@ class AgentState:
 class FlagConfig:
     @property
     def flag_count(self) -> builtins.int: ...
-    @flag_count.setter
-    def flag_count(self, value: builtins.int) -> None: ...
     @property
     def capture_point_count(self) -> builtins.int: ...
-    @capture_point_count.setter
-    def capture_point_count(self, value: builtins.int) -> None: ...
     @property
-    def pickup_radius(self) -> builtins.float:
-        r"""
-        How close the agent must be to a dropped flag to pick it up.
-        """
-    @pickup_radius.setter
-    def pickup_radius(self, value: builtins.float) -> None:
-        r"""
-        How close the agent must be to a dropped flag to pick it up.
-        """
+    def pickup_radius(self) -> builtins.float: ...
     @property
-    def capture_radius(self) -> builtins.float:
-        r"""
-        How close a dropped flag must be to a capture point to be captured.
-        """
-    @capture_radius.setter
-    def capture_radius(self, value: builtins.float) -> None:
-        r"""
-        How close a dropped flag must be to a capture point to be captured.
-        """
+    def capture_radius(self) -> builtins.float: ...
 
 class GameResult:
     r"""
@@ -306,28 +222,13 @@ class GameState:
 class MazeConfig:
     r"""
     Everything `parse_config` read out of a YAML file.
-    
-    Reading a nested config (`agent`, `flags`, `maze_generation`) gives back a copy, so setting a
-    field on it changes nothing. Assign the copy back to apply it:
-    
-    ```python
-    maze_generation = config.maze_generation
-    maze_generation.seed = 7
-    config.maze_generation = maze_generation
-    ```
     """
     @property
     def agent(self) -> AgentConfig: ...
-    @agent.setter
-    def agent(self, value: AgentConfig) -> None: ...
     @property
     def flags(self) -> FlagConfig: ...
-    @flags.setter
-    def flags(self, value: FlagConfig) -> None: ...
     @property
     def maze_generation(self) -> MazeGenerationConfig: ...
-    @maze_generation.setter
-    def maze_generation(self, value: MazeGenerationConfig) -> None: ...
     @property
     def use_true_map(self) -> builtins.bool: ...
     @use_true_map.setter
@@ -351,10 +252,87 @@ class MazeConfig:
         """
     @teleop.setter
     def teleop(self, value: builtins.bool) -> None: ...
-    def __repr__(self) -> builtins.str: ...
-    def __str__(self) -> builtins.str: ...
-
-class MazeGenerationConfig:
+    @property
+    def name(self) -> builtins.str: ...
+    @name.setter
+    def name(self, value: builtins.str) -> None: ...
+    @property
+    def max_speed(self) -> builtins.float: ...
+    @max_speed.setter
+    def max_speed(self, value: builtins.float) -> None: ...
+    @property
+    def policy_hz(self) -> builtins.float:
+        r"""
+        How often `get_action` is called, in Hz. Zero disables the policy entirely, which is only
+        useful for a keyboard-only teleop demonstration.
+        
+        The policy runs on simulation ticks, which are fixed at 60 Hz, so a rate that does not
+        divide 60 cannot be hit exactly: it is correct on average, but the `dt` handed to
+        `get_action` alternates between neighbouring tick counts. At 7 Hz, for instance, `dt`
+        alternates between 0.133 and 0.150 rather than sitting at 1/7. A rate that divides 60
+        gives a constant `dt`.
+        """
+    @policy_hz.setter
+    def policy_hz(self, value: builtins.float) -> None: ...
+    @property
+    def position_stddev(self) -> builtins.float: ...
+    @position_stddev.setter
+    def position_stddev(self, value: builtins.float) -> None: ...
+    @property
+    def range_stddev(self) -> builtins.float: ...
+    @range_stddev.setter
+    def range_stddev(self, value: builtins.float) -> None: ...
+    @property
+    def raycast_count(self) -> builtins.int:
+        r"""
+        How many rays the agent casts, spread evenly over a full turn. All of them are cast on the
+        tick the policy is queried, so the cost of a tick grows with this. Zero leaves the agent
+        with no range sensor at all.
+        """
+    @raycast_count.setter
+    def raycast_count(self, value: builtins.int) -> None: ...
+    @property
+    def raycast_max_distance(self) -> builtins.float:
+        r"""
+        How far each ray reaches. A ray that hits nothing within this distance reports the distance
+        itself, so a reading equal to it means "nothing found", not "a wall exactly here".
+        """
+    @raycast_max_distance.setter
+    def raycast_max_distance(self, value: builtins.float) -> None: ...
+    @property
+    def occupancy_grid_cell_size(self) -> builtins.float: ...
+    @occupancy_grid_cell_size.setter
+    def occupancy_grid_cell_size(self, value: builtins.float) -> None: ...
+    @property
+    def policy_timeout_seconds(self) -> builtins.float:
+        r"""
+        How long the simulation waits for one `get_action` call before giving up on the policy, in
+        seconds. Zero waits forever, which is what a debugger session needs.
+        """
+    @policy_timeout_seconds.setter
+    def policy_timeout_seconds(self, value: builtins.float) -> None: ...
+    @property
+    def flag_count(self) -> builtins.int: ...
+    @flag_count.setter
+    def flag_count(self, value: builtins.int) -> None: ...
+    @property
+    def capture_point_count(self) -> builtins.int: ...
+    @capture_point_count.setter
+    def capture_point_count(self, value: builtins.int) -> None: ...
+    @property
+    def pickup_radius(self) -> builtins.float:
+        r"""
+        How close the agent must be to a dropped flag to pick it up.
+        """
+    @pickup_radius.setter
+    def pickup_radius(self, value: builtins.float) -> None: ...
+    @property
+    def capture_radius(self) -> builtins.float:
+        r"""
+        How close a dropped flag must be to a capture point to be captured.
+        """
+    @capture_radius.setter
+    def capture_radius(self, value: builtins.float) -> None: ...
     @property
     def seed(self) -> typing.Optional[builtins.int]: ...
     @seed.setter
@@ -371,6 +349,18 @@ class MazeGenerationConfig:
     def cell_size(self) -> builtins.float: ...
     @cell_size.setter
     def cell_size(self, value: builtins.float) -> None: ...
+    def __repr__(self) -> builtins.str: ...
+    def __str__(self) -> builtins.str: ...
+
+class MazeGenerationConfig:
+    @property
+    def seed(self) -> typing.Optional[builtins.int]: ...
+    @property
+    def world_width(self) -> builtins.float: ...
+    @property
+    def world_height(self) -> builtins.float: ...
+    @property
+    def cell_size(self) -> builtins.float: ...
 
 class OccupancyGrid:
     r"""

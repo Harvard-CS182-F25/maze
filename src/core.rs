@@ -15,15 +15,6 @@ use crate::scene;
 use crate::teleop;
 
 /// Everything `parse_config` read out of a YAML file.
-///
-/// Reading a nested config (`agent`, `flags`, `maze_generation`) gives back a copy, so setting a
-/// field on it changes nothing. Assign the copy back to apply it:
-///
-/// ```python
-/// maze_generation = config.maze_generation
-/// maze_generation.seed = 7
-/// config.maze_generation = maze_generation
-/// ```
 #[gen_stub_pyclass]
 #[pyclass(name = "MazeConfig")]
 #[derive(Debug, Clone, Resource, Reflect, Serialize, Deserialize, Derivative)]
@@ -32,11 +23,14 @@ use crate::teleop;
 #[serde(default, deny_unknown_fields)]
 #[reflect(Resource)]
 pub struct MazeConfig {
-    #[pyo3(get, set)]
+    // Read-only from Python. PyO3 hands back a clone of a nested `#[pyclass]` field rather than a
+    // reference into the parent, so a setter here would accept writes that never arrive. Every
+    // leaf of the three is reachable directly on `MazeConfig` instead.
+    #[pyo3(get)]
     pub agent: agent::AgentConfig,
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub flags: flag::FlagConfig,
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub maze_generation: scene::MazeGenerationConfig,
     #[pyo3(get, set)]
     pub use_true_map: bool,
@@ -130,6 +124,176 @@ impl MazeConfig {
     #[setter]
     fn set_teleop(&mut self, value: bool) {
         self.teleop = value;
+    }
+
+    #[getter(name)]
+    fn get_name(&self) -> String {
+        self.agent.name.clone()
+    }
+    #[setter(name)]
+    fn set_name(&mut self, value: String) {
+        self.agent.name = value;
+    }
+
+    #[getter(max_speed)]
+    fn get_max_speed(&self) -> f32 {
+        self.agent.max_speed
+    }
+    #[setter(max_speed)]
+    fn set_max_speed(&mut self, value: f32) {
+        self.agent.max_speed = value;
+    }
+
+    /// How often `get_action` is called, in Hz. Zero disables the policy entirely, which is only
+    /// useful for a keyboard-only teleop demonstration.
+    ///
+    /// The policy runs on simulation ticks, which are fixed at 60 Hz, so a rate that does not
+    /// divide 60 cannot be hit exactly: it is correct on average, but the `dt` handed to
+    /// `get_action` alternates between neighbouring tick counts. At 7 Hz, for instance, `dt`
+    /// alternates between 0.133 and 0.150 rather than sitting at 1/7. A rate that divides 60
+    /// gives a constant `dt`.
+    #[getter(policy_hz)]
+    fn get_policy_hz(&self) -> f32 {
+        self.agent.policy_hz
+    }
+    #[setter(policy_hz)]
+    fn set_policy_hz(&mut self, value: f32) {
+        self.agent.policy_hz = value;
+    }
+
+    #[getter(position_stddev)]
+    fn get_position_stddev(&self) -> f32 {
+        self.agent.position_stddev
+    }
+    #[setter(position_stddev)]
+    fn set_position_stddev(&mut self, value: f32) {
+        self.agent.position_stddev = value;
+    }
+
+    #[getter(range_stddev)]
+    fn get_range_stddev(&self) -> f32 {
+        self.agent.range_stddev
+    }
+    #[setter(range_stddev)]
+    fn set_range_stddev(&mut self, value: f32) {
+        self.agent.range_stddev = value;
+    }
+
+    /// How many rays the agent casts, spread evenly over a full turn. All of them are cast on the
+    /// tick the policy is queried, so the cost of a tick grows with this. Zero leaves the agent
+    /// with no range sensor at all.
+    #[getter(raycast_count)]
+    fn get_raycast_count(&self) -> u32 {
+        self.agent.raycast_count
+    }
+    #[setter(raycast_count)]
+    fn set_raycast_count(&mut self, value: u32) {
+        self.agent.raycast_count = value;
+    }
+
+    /// How far each ray reaches. A ray that hits nothing within this distance reports the distance
+    /// itself, so a reading equal to it means "nothing found", not "a wall exactly here".
+    #[getter(raycast_max_distance)]
+    fn get_raycast_max_distance(&self) -> f32 {
+        self.agent.raycast_max_distance
+    }
+    #[setter(raycast_max_distance)]
+    fn set_raycast_max_distance(&mut self, value: f32) {
+        self.agent.raycast_max_distance = value;
+    }
+
+    #[getter(occupancy_grid_cell_size)]
+    fn get_occupancy_grid_cell_size(&self) -> f32 {
+        self.agent.occupancy_grid_cell_size
+    }
+    #[setter(occupancy_grid_cell_size)]
+    fn set_occupancy_grid_cell_size(&mut self, value: f32) {
+        self.agent.occupancy_grid_cell_size = value;
+    }
+
+    /// How long the simulation waits for one `get_action` call before giving up on the policy, in
+    /// seconds. Zero waits forever, which is what a debugger session needs.
+    #[getter(policy_timeout_seconds)]
+    fn get_policy_timeout_seconds(&self) -> f32 {
+        self.agent.policy_timeout_seconds
+    }
+    #[setter(policy_timeout_seconds)]
+    fn set_policy_timeout_seconds(&mut self, value: f32) {
+        self.agent.policy_timeout_seconds = value;
+    }
+
+    #[getter(flag_count)]
+    fn get_flag_count(&self) -> usize {
+        self.flags.flag_count
+    }
+    #[setter(flag_count)]
+    fn set_flag_count(&mut self, value: usize) {
+        self.flags.flag_count = value;
+    }
+
+    #[getter(capture_point_count)]
+    fn get_capture_point_count(&self) -> usize {
+        self.flags.capture_point_count
+    }
+    #[setter(capture_point_count)]
+    fn set_capture_point_count(&mut self, value: usize) {
+        self.flags.capture_point_count = value;
+    }
+
+    /// How close the agent must be to a dropped flag to pick it up.
+    #[getter(pickup_radius)]
+    fn get_pickup_radius(&self) -> f32 {
+        self.flags.pickup_radius
+    }
+    #[setter(pickup_radius)]
+    fn set_pickup_radius(&mut self, value: f32) {
+        self.flags.pickup_radius = value;
+    }
+
+    /// How close a dropped flag must be to a capture point to be captured.
+    #[getter(capture_radius)]
+    fn get_capture_radius(&self) -> f32 {
+        self.flags.capture_radius
+    }
+    #[setter(capture_radius)]
+    fn set_capture_radius(&mut self, value: f32) {
+        self.flags.capture_radius = value;
+    }
+
+    #[getter(seed)]
+    fn get_seed(&self) -> Option<u32> {
+        self.maze_generation.seed
+    }
+    #[setter(seed)]
+    fn set_seed(&mut self, value: Option<u32>) {
+        self.maze_generation.seed = value;
+    }
+
+    #[getter(world_width)]
+    fn get_world_width(&self) -> f32 {
+        self.maze_generation.world_width
+    }
+    #[setter(world_width)]
+    fn set_world_width(&mut self, value: f32) {
+        self.maze_generation.world_width = value;
+    }
+
+    #[getter(world_height)]
+    fn get_world_height(&self) -> f32 {
+        self.maze_generation.world_height
+    }
+    #[setter(world_height)]
+    fn set_world_height(&mut self, value: f32) {
+        self.maze_generation.world_height = value;
+    }
+
+    #[getter(cell_size)]
+    fn get_cell_size(&self) -> f32 {
+        self.maze_generation.cell_size
+    }
+    #[setter(cell_size)]
+    fn set_cell_size(&mut self, value: f32) {
+        self.maze_generation.cell_size = value;
     }
 
     fn __repr__(&self) -> PyResult<String> {

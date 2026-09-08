@@ -27,15 +27,15 @@ pub const WALL_THICKNESS: f32 = 1.0;
 #[reflect(Resource)]
 #[serde(default, deny_unknown_fields)]
 pub struct MazeGenerationConfig {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub seed: Option<u32>,
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "100.0"))]
     pub world_width: f32,
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "100.0"))]
     pub world_height: f32,
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "5.0"))]
     pub cell_size: f32,
 }

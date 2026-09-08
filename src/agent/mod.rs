@@ -33,52 +33,37 @@ pub(crate) const AGENT_RAYCAST_MAX_DISTANCE: f32 = 20.0;
 #[reflect(Resource)]
 #[serde(default, deny_unknown_fields)]
 pub struct AgentConfig {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "\"Agent\".to_string()"))]
     pub name: String,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "10.0"))]
     pub max_speed: f32,
 
-    /// How often `get_action` is called, in Hz. Zero disables the policy entirely, which is only
-    /// useful for a keyboard-only teleop demonstration.
-    ///
-    /// The policy runs on simulation ticks, which are fixed at 60 Hz, so a rate that does not
-    /// divide 60 cannot be hit exactly: it is correct on average, but the `dt` handed to
-    /// `get_action` alternates between neighbouring tick counts. At 7 Hz, for instance, `dt`
-    /// alternates between 0.133 and 0.150 rather than sitting at 1/7. A rate that divides 60
-    /// gives a constant `dt`.
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "60.0"))]
     pub policy_hz: f32,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub position_stddev: f32,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub range_stddev: f32,
 
-    /// How many rays the agent casts, spread evenly over a full turn. All of them are cast on the
-    /// tick the policy is queried, so the cost of a tick grows with this. Zero leaves the agent
-    /// with no range sensor at all.
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "NUM_AGENT_RAYS"))]
     pub raycast_count: u32,
 
-    /// How far each ray reaches. A ray that hits nothing within this distance reports the distance
-    /// itself, so a reading equal to it means "nothing found", not "a wall exactly here".
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "AGENT_RAYCAST_MAX_DISTANCE"))]
     pub raycast_max_distance: f32,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "1.0"))]
     pub occupancy_grid_cell_size: f32,
 
-    /// How long the simulation waits for one `get_action` call before giving up on the policy, in
-    /// seconds. Zero waits forever, which is what a debugger session needs.
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "60.0"))]
     pub policy_timeout_seconds: f32,
 }

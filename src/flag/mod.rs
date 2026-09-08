@@ -24,20 +24,18 @@ pub const COLLISION_LAYER_CAPTURE_POINT: u32 = 1 << 3;
 #[serde(default, deny_unknown_fields)]
 #[reflect(Resource)]
 pub struct FlagConfig {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "1"))]
     pub flag_count: usize,
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "1"))]
     pub capture_point_count: usize,
 
-    /// How close the agent must be to a dropped flag to pick it up.
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "FLAG_INTERACTION_RADIUS"))]
     pub pickup_radius: f32,
 
-    /// How close a dropped flag must be to a capture point to be captured.
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[derivative(Default(value = "CAPTURE_POINT_INTERACTION_RADIUS"))]
     pub capture_radius: f32,
 }
