@@ -290,9 +290,15 @@ class GameState:
         Returns the number of flags delivered to capture points.
         """
     @property
-    def world_width(self) -> builtins.float: ...
+    def world_width(self) -> builtins.float:
+        r"""
+        Returns the width of the maze in world units.
+        """
     @property
-    def world_height(self) -> builtins.float: ...
+    def world_height(self) -> builtins.float:
+        r"""
+        Returns the height of the maze in world units.
+        """
 
 class MazeConfig:
     r"""

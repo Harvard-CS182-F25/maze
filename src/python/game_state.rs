@@ -30,8 +30,10 @@ pub struct GameState {
     /// Returns the number of flags delivered to capture points.
     #[pyo3(get)]
     pub captured_flags: u32,
+    /// Returns the width of the maze in world units.
     #[pyo3(get)]
     pub world_width: f32,
+    /// Returns the height of the maze in world units.
     #[pyo3(get)]
     pub world_height: f32,
 }
