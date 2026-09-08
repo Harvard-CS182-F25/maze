@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use crate::agent::{GhostAgent, RayCasters};
 use crate::character_controller::MaxLinearSpeed;
 use crate::flag::{CapturePoint, Flag, FlagCaptureCounts};
-use crate::interaction_range::{FlagDropMessage, FlagPickupMessage};
+use crate::interaction_range::{FlagDropMessage, FlagPickupMessage, InteractionRadius};
 use crate::occupancy_grid::{OccupancyGrid, OccupancyGridView};
 use crate::occupancy_grid::{PlayerGrid, TrueGrid};
 use crate::python::game_state::{SensorRng, collect_agent_state};
@@ -255,6 +255,7 @@ fn send_game_states(
     mut pipeline_primed: Local<bool>,
     agent: Query<(&MaxLinearSpeed, &Transform, &RayCasters, Option<&Children>), With<Agent>>,
     kinds: Query<(Option<&Wall>, Option<&Flag>, Option<&CapturePoint>)>,
+    spent: Query<Entity, (Or<(With<Flag>, With<CapturePoint>)>, Without<InteractionRadius>)>,
     flags: Query<&Flag>,
 ) {
     // Physics runs in `FixedPostUpdate`, and with it the spatial-query pipeline the agent's rays
@@ -282,7 +283,7 @@ fn send_game_states(
     };
 
     let (noisy_agent_state, true_agent_state) =
-        collect_agent_state(&config, &mut sensor_rng, &spatial_query, agent, &kinds);
+        collect_agent_state(&config, &mut sensor_rng, &spatial_query, agent, &kinds, &spent);
 
     let noisy_state = GameState {
         agent: noisy_agent_state,

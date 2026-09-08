@@ -13,6 +13,7 @@ use crate::{
     agent::{Agent, RayCasters},
     character_controller::MaxLinearSpeed,
     flag::{CapturePoint, Flag},
+    interaction_range::InteractionRadius,
     scene::Wall,
 };
 
@@ -267,6 +268,7 @@ pub fn collect_agent_state(
     spatial_query: &SpatialQuery,
     agent: Query<(&MaxLinearSpeed, &Transform, &RayCasters, Option<&Children>), With<Agent>>,
     kinds: &Query<(Option<&Wall>, Option<&Flag>, Option<&CapturePoint>)>,
+    spent: &Query<Entity, (Or<(With<Flag>, With<CapturePoint>)>, Without<InteractionRadius>)>,
 ) -> (AgentState, AgentState) {
     let (max_speed, agent_transform, raycasters, children) =
         agent.single().expect("There should be exactly one agent");
@@ -278,6 +280,11 @@ pub fn collect_agent_state(
             Some(child)
         })
     });
+
+    // Anything that has lost its `InteractionRadius` is hidden from the map, so the rays have to
+    // agree: otherwise the agent senses a capture point the map says is not there. This covers the
+    // carried flag too, which would otherwise sit on top of the ray origin and return zero range.
+    let hidden: Vec<Entity> = spent.iter().collect();
 
     let mut raycasts = raycasters
         .0
@@ -291,7 +298,7 @@ pub fn collect_agent_state(
                 &raycaster
                     .query_filter
                     .clone()
-                    .with_excluded_entities(flag.map(|e| vec![e]).unwrap_or(vec![])),
+                    .with_excluded_entities(hidden.iter().copied()),
             );
 
             let entity_type = hit

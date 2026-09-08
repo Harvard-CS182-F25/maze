@@ -5,6 +5,7 @@ use rand_chacha::ChaCha20Rng;
 
 use crate::core::MazeConfig;
 use crate::flag::{CapturePoint, CapturePointBundle, Flag};
+use crate::interaction_range::InteractionRadius;
 use crate::occupancy_grid::{LOGIT_CLAMP, OccupancyGrid, TrueGrid};
 use crate::python::game_state::EntityType;
 use crate::scene::{WALL_THICKNESS, WallSegments};
@@ -234,8 +235,11 @@ pub fn spawn_capture_points(
 pub fn update_true_grid(
     true_grid: ResMut<TrueGrid>,
     segments: Res<WallSegments>,
-    query_flag: Query<&GlobalTransform, With<Flag>>,
-    query_cp: Query<&GlobalTransform, With<CapturePoint>>,
+    // `InteractionRadius` is dropped the moment a flag or capture point stops being usable: a
+    // carried or captured flag, and a capture point that has already taken its one flag. Those
+    // must not appear in the map, or an agent will keep routing to a delivery that cannot happen.
+    query_flag: Query<&GlobalTransform, (With<Flag>, With<InteractionRadius>)>,
+    query_cp: Query<&GlobalTransform, (With<CapturePoint>, With<InteractionRadius>)>,
 ) {
     Python::attach(|py| {
         let grid = true_grid.0.write().unwrap();
