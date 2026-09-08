@@ -79,6 +79,22 @@ impl MazeGenerationConfig {
     }
 }
 
+#[pymethods]
+impl MazeGenerationConfig {
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!("MazeGenerationConfig({})", self.__str__()?))
+    }
+
+    fn __str__(&self) -> PyResult<String> {
+        serde_json::to_string_pretty(self).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to serialize MazeGenerationConfig: {}",
+                e
+            ))
+        })
+    }
+}
+
 pub struct ScenePlugin;
 impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {

@@ -52,7 +52,11 @@ pub struct AgentState {
     #[pyo3(get)]
     pub position_stddev: f32,
 
-    /// Returns a list of range-sensor readings.
+    /// Returns the standard deviation of the noise on each raycast distance.
+    #[pyo3(get)]
+    pub range_stddev: f32,
+
+    /// Returns the range-sensor readings, in increasing order of `theta`.
     #[pyo3(get)]
     pub raycasts: Vec<Raycast>,
 
@@ -103,7 +107,7 @@ impl std::fmt::Display for EntityType {
 #[derive(Clone, Debug, PartialEq)]
 /// Represents one range-sensor reading from the agent's current position.
 pub struct Raycast {
-    /// Returns the ray angle in radians clockwise from +x.
+    /// Returns the ray angle in radians, measured from `+x` towards `+y`.
     #[pyo3(get)]
     pub theta: f32,
 
@@ -112,7 +116,7 @@ pub struct Raycast {
     #[pyo3(get)]
     pub endpoint_type: EntityType,
 
-    /// Returns the reported distance, including range noise.
+    /// Returns the reported distance, including range noise for hits.
     #[pyo3(get)]
     pub distance: f32,
 
@@ -335,6 +339,7 @@ pub fn collect_agent_state(
     let true_agent_state = AgentState {
         position: agent_transform.translation.xz().into(),
         position_stddev: config.agent.position_stddev,
+        range_stddev: config.agent.range_stddev,
         raycasts,
         carrying_flag: flag.is_some(),
         max_speed: max_speed.0,

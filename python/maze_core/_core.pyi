@@ -11,8 +11,7 @@ class Action:
     """
     class Move(Action):
         r"""
-        Moves the agent at `velocity`, capped to its `max_speed`.
-        Example: `Action.Move(velocity=(1.0, 0.0))`.
+        Sets the `velocity`, capped to `max_speed`, until the next `Move`.
         """
         __match_args__ = ("velocity",)
         @property
@@ -22,7 +21,6 @@ class Action:
     class PickupFlag(Action):
         r"""
         Picks up a flag, if one is on the ground within reach.
-        Example: `Action.PickupFlag()`.
         """
         __match_args__ = ()
         def __new__(cls) -> Action.PickupFlag: ...
@@ -31,8 +29,8 @@ class Action:
     
     class DropFlag(Action):
         r"""
-        Drops the flag the agent is carrying, capturing it if a capture point is within reach.
-        Example: `Action.DropFlag()`.
+        Drops the flag the agent is carrying, capturing it if a capture point
+        is within reach.
         """
         __match_args__ = ()
         def __new__(cls) -> Action.DropFlag: ...
@@ -140,9 +138,14 @@ class AgentState:
         Returns the standard deviation of position observations.
         """
     @property
+    def range_stddev(self) -> builtins.float:
+        r"""
+        Returns the standard deviation of the noise on each raycast distance.
+        """
+    @property
     def raycasts(self) -> builtins.list[Raycast]:
         r"""
-        Returns a list of range-sensor readings.
+        Returns the range-sensor readings, in increasing order of `theta`.
         """
     @property
     def carrying_flag(self) -> builtins.bool:
@@ -374,13 +377,25 @@ class OccupancyGrid:
     Represents a mutable occupancy grid, indexed by `grid[column, row]`.
     """
     @property
-    def cell_size(self) -> builtins.float: ...
+    def cell_size(self) -> builtins.float:
+        r"""
+        Returns the edge length of each cell.
+        """
     @property
-    def columns(self) -> builtins.int: ...
+    def columns(self) -> builtins.int:
+        r"""
+        Returns the number of columns.
+        """
     @property
-    def rows(self) -> builtins.int: ...
+    def rows(self) -> builtins.int:
+        r"""
+        Returns the number of rows.
+        """
     @property
-    def shape(self) -> tuple[builtins.int, builtins.int]: ...
+    def shape(self) -> tuple[builtins.int, builtins.int]:
+        r"""
+        Returns `(columns, rows)`.
+        """
     def __getitem__(self, key:typing.Any) -> OccupancyGridCell: ...
     def cell_at(self, x:builtins.float, y:builtins.float) -> typing.Optional[tuple[builtins.int, builtins.int]]:
         r"""
@@ -444,7 +459,7 @@ class Raycast:
     @property
     def theta(self) -> builtins.float:
         r"""
-        Returns the ray angle in radians clockwise from +x.
+        Returns the ray angle in radians, measured from `+x` towards `+y`.
         """
     @property
     def endpoint_type(self) -> EntityType:
@@ -455,7 +470,7 @@ class Raycast:
     @property
     def distance(self) -> builtins.float:
         r"""
-        Returns the reported distance, including range noise.
+        Returns the reported distance, including range noise for hits.
         """
     @property
     def max_distance(self) -> builtins.float:

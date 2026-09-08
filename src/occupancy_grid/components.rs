@@ -394,6 +394,7 @@ impl OccupancyGridView {
         })
     }
 
+    /// Returns the edge length of each cell.
     #[getter]
     pub fn cell_size(&self) -> PyResult<f32> {
         Python::attach(|py| {
@@ -403,6 +404,7 @@ impl OccupancyGridView {
         })
     }
 
+    /// Returns the number of columns.
     #[getter]
     pub fn columns(&self) -> PyResult<usize> {
         Python::attach(|py| {
@@ -412,6 +414,7 @@ impl OccupancyGridView {
         })
     }
 
+    /// Returns the number of rows.
     #[getter]
     pub fn rows(&self) -> PyResult<usize> {
         Python::attach(|py| {
@@ -421,6 +424,7 @@ impl OccupancyGridView {
         })
     }
 
+    /// Returns `(columns, rows)`.
     #[getter]
     pub fn shape(&self) -> PyResult<(usize, usize)> {
         Python::attach(|py| {
@@ -528,6 +532,6 @@ impl PyGridProvider for TrueGrid {
         &self.0
     }
     fn name() -> &'static str {
-        "TruthGrid"
+        "TrueGrid"
     }
 }

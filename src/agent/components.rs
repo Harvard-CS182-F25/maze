@@ -56,14 +56,12 @@ impl RayCasters {
 #[pyclass(name = "Action", eq)]
 /// An action returned by an agent policy.
 pub enum Action {
-    /// Moves the agent at `velocity`, capped to its `max_speed`.
-    /// Example: `Action.Move(velocity=(1.0, 0.0))`.
+    /// Sets the `velocity`, capped to `max_speed`, until the next `Move`.
     Move { velocity: (f32, f32) },
     /// Picks up a flag, if one is on the ground within reach.
-    /// Example: `Action.PickupFlag()`.
     PickupFlag(),
-    /// Drops the flag the agent is carrying, capturing it if a capture point is within reach.
-    /// Example: `Action.DropFlag()`.
+    /// Drops the flag the agent is carrying, capturing it if a capture point
+    /// is within reach.
     DropFlag(),
 }
 

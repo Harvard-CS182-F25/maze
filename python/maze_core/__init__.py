@@ -1,4 +1,4 @@
-from maze_core._core import run, run_headless, parse_config, GameState, GameResult, Action, AgentState, Raycast, MazeConfig, AgentConfig, FlagConfig, OccupancyGrid, OccupancyGridCell, EntityType, SensorConfidence
+from maze_core._core import run, run_headless, parse_config, GameState, GameResult, Action, AgentState, Raycast, MazeConfig, AgentConfig, FlagConfig, MazeGenerationConfig, OccupancyGrid, OccupancyGridCell, EntityType, SensorConfidence
 
 from typing import Protocol, runtime_checkable
 
@@ -26,4 +26,4 @@ class AgentProtocol(Protocol):
         """
         ...
 
-__all__ = ["run", "run_headless", "parse_config", "GameState", "GameResult", "Action", "AgentState", "Raycast", "AgentProtocol", "MazeConfig", "AgentConfig", "FlagConfig", "OccupancyGrid", "OccupancyGridCell", "EntityType", "Position", "Velocity", "SensorConfidence"]
+__all__ = ["run", "run_headless", "parse_config", "GameState", "GameResult", "Action", "AgentState", "Raycast", "AgentProtocol", "MazeConfig", "AgentConfig", "FlagConfig", "MazeGenerationConfig", "OccupancyGrid", "OccupancyGridCell", "EntityType", "Position", "Velocity", "SensorConfidence"]

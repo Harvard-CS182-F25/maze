@@ -340,6 +340,7 @@ fn _core(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<core::MazeConfig>()?;
     m.add_class::<agent::AgentConfig>()?;
     m.add_class::<flag::FlagConfig>()?;
+    m.add_class::<scene::MazeGenerationConfig>()?;
 
     m.add_class::<agent::Action>()?;
     m.add_class::<python::game_state::GameState>()?;
