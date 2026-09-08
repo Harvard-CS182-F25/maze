@@ -259,7 +259,7 @@ impl OccupancyGrid {
     }
 
     /// Returns the `(column, row)` containing `(x, y)`, or `None` if outside grid.
-    pub fn cell_at(&self, x: f32, y: f32) -> Option<(usize, usize)> {
+    pub fn world_to_cell(&self, x: f32, y: f32) -> Option<(usize, usize)> {
         // A NaN would pass both bounds checks below: it compares false against everything, and
         // `NaN as usize` saturates to zero, so it would quietly name the corner cell.
         if !x.is_finite() || !y.is_finite() {
@@ -278,7 +278,7 @@ impl OccupancyGrid {
     }
 
     /// Returns the center of cell `(column, row)`, or `None` if outside grid.
-    pub fn world_center(&self, column: usize, row: usize) -> Option<(f32, f32)> {
+    pub fn cell_to_world(&self, column: usize, row: usize) -> Option<(f32, f32)> {
         if column >= self.columns || row >= self.rows {
             return None;
         }
@@ -435,20 +435,20 @@ impl OccupancyGridView {
     }
 
     /// Returns the `(column, row)` containing `(x, y)`, or `None` if outside grid.
-    pub fn cell_at(&self, x: f32, y: f32) -> PyResult<Option<(usize, usize)>> {
+    pub fn world_to_cell(&self, x: f32, y: f32) -> PyResult<Option<(usize, usize)>> {
         Python::attach(|py| {
             let grid = self.inner.read().unwrap();
             let grid_ref = grid.borrow(py);
-            Ok(grid_ref.cell_at(x, y))
+            Ok(grid_ref.world_to_cell(x, y))
         })
     }
 
     /// Returns the center of cell `(column, row)`, or `None` if outside grid.
-    pub fn world_center(&self, column: usize, row: usize) -> PyResult<Option<(f32, f32)>> {
+    pub fn cell_to_world(&self, column: usize, row: usize) -> PyResult<Option<(f32, f32)>> {
         Python::attach(|py| {
             let grid = self.inner.read().unwrap();
             let grid_ref = grid.borrow(py);
-            Ok(grid_ref.world_center(column, row))
+            Ok(grid_ref.cell_to_world(column, row))
         })
     }
 }
@@ -472,10 +472,10 @@ mod tests {
             (1e30, 0.0),
             (-1e30, 0.0),
         ] {
-            assert_eq!(grid.cell_at(x, y), None, "cell_at({x}, {y})");
+            assert_eq!(grid.world_to_cell(x, y), None, "world_to_cell({x}, {y})");
         }
 
-        assert!(grid.cell_at(0.0, 0.0).is_some());
+        assert!(grid.world_to_cell(0.0, 0.0).is_some());
     }
 
     #[test]
@@ -483,19 +483,19 @@ mod tests {
         let grid = OccupancyGrid::new(100, 60, 2.0);
 
         for (column, row) in [(0, 0), (50, 30), (99, 59)] {
-            let (x, y) = grid.world_center(column, row).unwrap();
-            assert_eq!(grid.cell_at(x, y), Some((column, row)));
+            let (x, y) = grid.cell_to_world(column, row).unwrap();
+            assert_eq!(grid.world_to_cell(x, y), Some((column, row)));
         }
 
         // The grid is centred on the origin, so its corners sit at half the extent.
-        assert_eq!(grid.world_center(0, 0), Some((-99.0, -59.0)));
-        assert_eq!(grid.cell_at(0.0, 0.0), Some((50, 30)));
+        assert_eq!(grid.cell_to_world(0, 0), Some((-99.0, -59.0)));
+        assert_eq!(grid.world_to_cell(0.0, 0.0), Some((50, 30)));
 
-        assert_eq!(grid.world_center(100, 0), None);
-        assert_eq!(grid.world_center(0, 60), None);
-        assert_eq!(grid.cell_at(-100.1, 0.0), None);
-        assert_eq!(grid.cell_at(100.1, 0.0), None);
-        assert_eq!(grid.cell_at(0.0, 60.1), None);
+        assert_eq!(grid.cell_to_world(100, 0), None);
+        assert_eq!(grid.cell_to_world(0, 60), None);
+        assert_eq!(grid.world_to_cell(-100.1, 0.0), None);
+        assert_eq!(grid.world_to_cell(100.1, 0.0), None);
+        assert_eq!(grid.world_to_cell(0.0, 60.1), None);
     }
 }
 

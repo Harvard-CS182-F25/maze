@@ -236,7 +236,7 @@ pub fn cursor_to_grid_cell<T: PyGridProvider>(
     let cell = Python::attach(|py| {
         let grid = grid.arc().read().unwrap();
         let grid = grid.borrow(py);
-        grid.cell_at(local.x, local.z)
+        grid.world_to_cell(local.x, local.z)
     });
 
     let Some((column, row)) = cell else {

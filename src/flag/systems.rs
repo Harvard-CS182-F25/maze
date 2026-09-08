@@ -127,7 +127,7 @@ fn pick_positions_for(
     for &i in &picked {
         py_grid.set_assignment(i, Some(place_as));
         let (column, row) = (i % py_grid.columns, i / py_grid.columns);
-        out.extend(py_grid.world_center(column, row));
+        out.extend(py_grid.cell_to_world(column, row));
     }
 
     out
@@ -169,7 +169,7 @@ pub fn spawn_flags(
         let mut entity = commands.spawn(FlagBundle::new(
             &flag_name,
             Vec3::new(x, 0.5, y),
-            config.flags.flag_radius,
+            config.flags.pickup_radius,
         ));
 
         if let Some(flag_graphics) = &flag_graphics {
@@ -219,7 +219,7 @@ pub fn spawn_capture_points(
         let mut entity = commands.spawn(CapturePointBundle::new(
             &name,
             Vec3::new(x, 0.5, y),
-            config.flags.capture_point_radius,
+            config.flags.capture_radius,
         ));
 
         if let Some(capture_point_graphics) = &capture_point_graphics {

@@ -31,25 +31,25 @@ pub struct GameResult {
 
     /// Fraction of ground-truth cells the agent's map classified correctly, in `[0, 1]`.
     #[pyo3(get)]
-    pub final_mapping_accuracy: f32,
+    pub mapping_accuracy: f32,
 
-    /// `(correct, total)` cell counts behind `final_mapping_accuracy`.
+    /// `(correct, total)` cell counts behind `mapping_accuracy`.
     #[pyo3(get)]
     pub mapping_accuracy_cells: (u32, u32),
 
     /// Fraction of true free space cells classified as free, in `[0, 1]`.
     #[pyo3(get)]
-    pub final_free_recall: f32,
+    pub free_recall: f32,
 
-    /// `(correct, total)` free space cell counts behind `final_free_recall`.
+    /// `(correct, total)` free space cell counts behind `free_recall`.
     #[pyo3(get)]
     pub free_recall_cells: (u32, u32),
 
     /// Fraction of true wall cells classified as walls, in `[0, 1]`.
     #[pyo3(get)]
-    pub final_wall_recall: f32,
+    pub wall_recall: f32,
 
-    /// `(correct, total)` wall cell counts behind `final_wall_recall`.
+    /// `(correct, total)` wall cell counts behind `wall_recall`.
     #[pyo3(get)]
     pub wall_recall_cells: (u32, u32),
 
@@ -63,7 +63,7 @@ pub struct GameResult {
     pub flag_capture_times: Vec<f32>,
 
     #[pyo3(get)]
-    pub flags_captured: u32,
+    pub captured_flags: u32,
 
     #[pyo3(get)]
     pub total_flags: u32,
@@ -114,7 +114,7 @@ impl std::fmt::Display for GameResult {
         writeln!(
             f,
             "  mapping accuracy   {:.1}% ({}/{} cells)",
-            self.final_mapping_accuracy * 100.0,
+            self.mapping_accuracy * 100.0,
             correct,
             total
         )?;
@@ -122,7 +122,7 @@ impl std::fmt::Display for GameResult {
         writeln!(
             f,
             "    free space recall {:.1}% ({}/{} cells)",
-            self.final_free_recall * 100.0,
+            self.free_recall * 100.0,
             correct,
             total
         )?;
@@ -130,7 +130,7 @@ impl std::fmt::Display for GameResult {
         writeln!(
             f,
             "    wall recall       {:.1}% ({}/{} cells)",
-            self.final_wall_recall * 100.0,
+            self.wall_recall * 100.0,
             correct,
             total
         )?;
@@ -150,7 +150,7 @@ impl std::fmt::Display for GameResult {
         writeln!(
             f,
             "  flags captured     {}/{}",
-            self.flags_captured, self.total_flags
+            self.captured_flags, self.total_flags
         )?;
         if self.capturable_flags < self.total_flags {
             writeln!(
@@ -197,11 +197,11 @@ pub struct MetricsState {
     last_capture_count: u32,
     capturable_flags: u32,
     mapping_accuracy_cells: (u32, u32),
-    final_mapping_accuracy: f32,
+    mapping_accuracy: f32,
     free_recall_cells: (u32, u32),
-    final_free_recall: f32,
+    free_recall: f32,
     wall_recall_cells: (u32, u32),
-    final_wall_recall: f32,
+    wall_recall: f32,
     elapsed_seconds: f32,
     timed_out: bool,
     maze_seed: u32,
@@ -261,11 +261,11 @@ fn record_metrics(
     let metrics = mapping_metrics(&player_grid, &true_grid);
     let accuracy = metrics.accuracy();
     state.mapping_accuracy_cells = (metrics.correct_cells, metrics.total_cells);
-    state.final_mapping_accuracy = accuracy;
+    state.mapping_accuracy = accuracy;
     state.free_recall_cells = (metrics.free_correct_cells, metrics.free_cells);
-    state.final_free_recall = metrics.free_recall();
+    state.free_recall = metrics.free_recall();
     state.wall_recall_cells = (metrics.wall_correct_cells, metrics.wall_cells);
-    state.final_wall_recall = metrics.wall_recall();
+    state.wall_recall = metrics.wall_recall();
 
     for (index, threshold) in metrics_config
         .mapping_accuracy_milestones
@@ -317,11 +317,11 @@ fn report_result(
     let result = GameResult {
         elapsed_seconds: state.elapsed_seconds,
         timed_out: state.timed_out,
-        final_mapping_accuracy: state.final_mapping_accuracy,
+        mapping_accuracy: state.mapping_accuracy,
         mapping_accuracy_cells: state.mapping_accuracy_cells,
-        final_free_recall: state.final_free_recall,
+        free_recall: state.free_recall,
         free_recall_cells: state.free_recall_cells,
-        final_wall_recall: state.final_wall_recall,
+        wall_recall: state.wall_recall,
         wall_recall_cells: state.wall_recall_cells,
         mapping_accuracy_milestones: metrics_config
             .mapping_accuracy_milestones
@@ -330,7 +330,7 @@ fn report_result(
             .zip(state.mapping_accuracy_milestone_times.iter().copied())
             .collect(),
         flag_capture_times: state.flag_capture_times.clone(),
-        flags_captured: state.last_capture_count,
+        captured_flags: state.last_capture_count,
         total_flags: state.total_flags,
         capturable_flags: state.capturable_flags,
         maze_seed: state.maze_seed,

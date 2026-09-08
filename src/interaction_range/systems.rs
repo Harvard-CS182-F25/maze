@@ -167,7 +167,7 @@ pub fn handle_flag_drop(
             commands.entity(flag_entity).insert((
                 RigidBody::Kinematic,
                 Collider::cylinder(0.5, 3.0),
-                InteractionRadius(config.flags.flag_radius),
+                InteractionRadius(config.flags.pickup_radius),
             ));
             flag.status = FlagStatus::Dropped;
             flag_transform.translation = agent_transform.translation

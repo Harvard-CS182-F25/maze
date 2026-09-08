@@ -168,22 +168,22 @@ class FlagConfig:
     @capture_point_count.setter
     def capture_point_count(self, value: builtins.int) -> None: ...
     @property
-    def flag_radius(self) -> builtins.float:
+    def pickup_radius(self) -> builtins.float:
         r"""
         How close the agent must be to a dropped flag to pick it up.
         """
-    @flag_radius.setter
-    def flag_radius(self, value: builtins.float) -> None:
+    @pickup_radius.setter
+    def pickup_radius(self, value: builtins.float) -> None:
         r"""
         How close the agent must be to a dropped flag to pick it up.
         """
     @property
-    def capture_point_radius(self) -> builtins.float:
+    def capture_radius(self) -> builtins.float:
         r"""
         How close a dropped flag must be to a capture point to be captured.
         """
-    @capture_point_radius.setter
-    def capture_point_radius(self, value: builtins.float) -> None:
+    @capture_radius.setter
+    def capture_radius(self, value: builtins.float) -> None:
         r"""
         How close a dropped flag must be to a capture point to be captured.
         """
@@ -203,34 +203,34 @@ class GameResult:
         True if the run stopped because it hit the time limit rather than finishing early.
         """
     @property
-    def final_mapping_accuracy(self) -> builtins.float:
+    def mapping_accuracy(self) -> builtins.float:
         r"""
         Fraction of ground-truth cells the agent's map classified correctly, in `[0, 1]`.
         """
     @property
     def mapping_accuracy_cells(self) -> tuple[builtins.int, builtins.int]:
         r"""
-        `(correct, total)` cell counts behind `final_mapping_accuracy`.
+        `(correct, total)` cell counts behind `mapping_accuracy`.
         """
     @property
-    def final_free_recall(self) -> builtins.float:
+    def free_recall(self) -> builtins.float:
         r"""
         Fraction of true free space cells classified as free, in `[0, 1]`.
         """
     @property
     def free_recall_cells(self) -> tuple[builtins.int, builtins.int]:
         r"""
-        `(correct, total)` free space cell counts behind `final_free_recall`.
+        `(correct, total)` free space cell counts behind `free_recall`.
         """
     @property
-    def final_wall_recall(self) -> builtins.float:
+    def wall_recall(self) -> builtins.float:
         r"""
         Fraction of true wall cells classified as walls, in `[0, 1]`.
         """
     @property
     def wall_recall_cells(self) -> tuple[builtins.int, builtins.int]:
         r"""
-        `(correct, total)` wall cell counts behind `final_wall_recall`.
+        `(correct, total)` wall cell counts behind `wall_recall`.
         """
     @property
     def mapping_accuracy_milestones(self) -> builtins.list[tuple[builtins.float, typing.Optional[builtins.float]]]:
@@ -244,7 +244,7 @@ class GameResult:
         Simulated time of each flag capture, in order.
         """
     @property
-    def flags_captured(self) -> builtins.int: ...
+    def captured_flags(self) -> builtins.int: ...
     @property
     def total_flags(self) -> builtins.int: ...
     @property
@@ -397,11 +397,11 @@ class OccupancyGrid:
         Returns `(columns, rows)`.
         """
     def __getitem__(self, key:typing.Any) -> OccupancyGridCell: ...
-    def cell_at(self, x:builtins.float, y:builtins.float) -> typing.Optional[tuple[builtins.int, builtins.int]]:
+    def world_to_cell(self, x:builtins.float, y:builtins.float) -> typing.Optional[tuple[builtins.int, builtins.int]]:
         r"""
         Returns the `(column, row)` containing `(x, y)`, or `None` if outside grid.
         """
-    def world_center(self, column:builtins.int, row:builtins.int) -> typing.Optional[tuple[builtins.float, builtins.float]]:
+    def cell_to_world(self, column:builtins.int, row:builtins.int) -> typing.Optional[tuple[builtins.float, builtins.float]]:
         r"""
         Returns the center of cell `(column, row)`, or `None` if outside grid.
         """

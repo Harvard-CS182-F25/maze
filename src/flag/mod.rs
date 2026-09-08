@@ -34,26 +34,26 @@ pub struct FlagConfig {
     /// How close the agent must be to a dropped flag to pick it up.
     #[pyo3(get, set)]
     #[derivative(Default(value = "FLAG_INTERACTION_RADIUS"))]
-    pub flag_radius: f32,
+    pub pickup_radius: f32,
 
     /// How close a dropped flag must be to a capture point to be captured.
     #[pyo3(get, set)]
     #[derivative(Default(value = "CAPTURE_POINT_INTERACTION_RADIUS"))]
-    pub capture_point_radius: f32,
+    pub capture_radius: f32,
 }
 
 impl FlagConfig {
     /// Flags and capture points are spawned this far from walls and from each other, so that a
     /// reachable flag never sits inside a wall's clearance or on top of another one.
     pub(crate) fn spawn_clearance(&self) -> f32 {
-        self.flag_radius.max(self.capture_point_radius)
+        self.pickup_radius.max(self.capture_radius)
     }
 
     pub(crate) fn validate(&self) -> Result<(), String> {
         // Zero is degenerate but coherent: the agent has to stand on the flag exactly.
         for (name, value) in [
-            ("flags.flag_radius", self.flag_radius),
-            ("flags.capture_point_radius", self.capture_point_radius),
+            ("flags.pickup_radius", self.pickup_radius),
+            ("flags.capture_radius", self.capture_radius),
         ] {
             if !value.is_finite() || value < 0.0 {
                 return Err(format!("{name} must be zero or positive; got {value}"));

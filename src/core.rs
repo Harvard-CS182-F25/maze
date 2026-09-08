@@ -229,8 +229,8 @@ mod tests {
         degenerate.agent.position_stddev = 0.0;
         // A blind agent and flags that must be stood on exactly are degenerate the same way.
         degenerate.agent.raycast_count = 0;
-        degenerate.flags.flag_radius = 0.0;
-        degenerate.flags.capture_point_radius = 0.0;
+        degenerate.flags.pickup_radius = 0.0;
+        degenerate.flags.capture_radius = 0.0;
         assert!(degenerate.validate_settings().is_ok());
 
         let rejects = |break_it: fn(&mut MazeConfig)| {
@@ -273,11 +273,11 @@ mod tests {
             "zero ray reach"
         );
         assert!(
-            rejects(|c| c.flags.flag_radius = -1.0),
+            rejects(|c| c.flags.pickup_radius = -1.0),
             "negative flag radius"
         );
         assert!(
-            rejects(|c| c.flags.capture_point_radius = f32::NAN),
+            rejects(|c| c.flags.capture_radius = f32::NAN),
             "non-finite capture point radius"
         );
     }

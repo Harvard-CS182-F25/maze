@@ -30,7 +30,7 @@ pub fn spawn_agents(
                 if *assignment != Some(EntityType::Free) {
                     return None;
                 }
-                py_obj.world_center(i % py_obj.columns, i / py_obj.columns)
+                py_obj.cell_to_world(i % py_obj.columns, i / py_obj.columns)
             })
             .collect();
 
